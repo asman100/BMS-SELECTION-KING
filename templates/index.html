@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced BMS Tool</title>
+    <style>
+        /* Main CSS is identical */
+        :root{--primary-bg:#f4f7fa;--sidebar-bg:#1a3b5d;--sidebar-item-bg:#2a4b6d;--sidebar-item-hover-bg:#3a5b7d;--sidebar-text:#fff;--sidebar-link-text:#aed9ff;--main-header-text:#1a3b5d;--section-header-text:#005a9e;--border-color:#e0e6ed;--white:#fff;--btn-primary-bg:#007bff;--btn-update-bg:#28a745;--btn-secondary-bg:#4a6a8a;--btn-danger-bg:#dc3545}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:var(--primary-bg);color:#333;margin:0;height:100vh;overflow:hidden}.app-layout{display:flex;height:100%}.sidebar{width:280px;background-color:var(--sidebar-bg);color:var(--sidebar-text);padding:20px;display:flex;flex-direction:column;box-shadow:2px 0 5px rgba(0,0,0,.1);flex-shrink:0}.sidebar h2{margin:0 0 10px 0;font-size:20px;text-align:center}.search-bar{width:100%;padding:10px;border-radius:5px;border:1px solid #4a6a8a;background-color:var(--sidebar-item-bg);color:var(--sidebar-text);box-sizing:border-box;margin-bottom:20px}.panel-list{list-style:none;padding:0;margin:0;overflow-y:auto;flex-grow:1}.panel-list details{margin-bottom:5px}.panel-list summary{cursor:pointer;padding:10px;background-color:var(--sidebar-item-bg);border-radius:5px;font-weight:700;list-style:none;transition:background-color .2s}.panel-list summary::-webkit-details-marker{display:none}.panel-list summary:hover{background-color:var(--sidebar-item-hover-bg)}.panel-list summary.active{background-color:var(--btn-primary-bg)}.equipment-sublist{list-style:none;padding:10px 0 5px 20px}.equipment-sublist li a{color:var(--sidebar-link-text);text-decoration:none;display:block;padding:5px;border-radius:3px;cursor:pointer}.equipment-sublist li a:hover,.equipment-sublist li a.active{background-color:#4a6a8a;color:var(--sidebar-text)}.sidebar-footer{margin-top:auto;padding-top:15px;border-top:1px solid #4a6a8a}.btn{padding:12px 20px;font-size:16px;font-weight:700;text-align:center;border-radius:5px;border:none;cursor:pointer;transition:all .2s}.btn:hover{filter:brightness(90%)}.btn-secondary{background-color:var(--btn-secondary-bg);color:#fff;width:100%}.main-content{flex-grow:1;padding:30px;overflow-y:auto;display:flex;flex-direction:column}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border-color);padding-bottom:15px;margin-bottom:25px;flex-shrink:0}.header h1{margin:0;font-size:24px;color:var(--main-header-text)}.stage{background-color:var(--white);border:1px solid var(--border-color);border-radius:6px;padding:20px}.stage h3{font-size:18px;color:var(--section-header-text);margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px}.form-group{margin-bottom:15px}label{display:block;font-weight:600;margin-bottom:5px;color:#555}input[type=text],input[type=number],select{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-size:16px}input[readonly]{background-color:#e9ecef;cursor:not-allowed}#submit-button-container{margin-top:10px}.btn-primary{background-color:var(--btn-primary-bg);color:#fff;width:100%}.btn-update{background-color:var(--btn-update-bg);color:#fff;width:100%}.btn-danger{background-color:var(--btn-danger-bg);color:#fff}.btn-link{background:0 0;border:none;color:#007bff;cursor:pointer;text-decoration:underline;padding:0;font-size:14px}#point-configuration{display:none}.checkbox-group{display:flex;flex-direction:column;gap:10px}.checkbox-group fieldset{border:1px solid #ddd;border-radius:4px;padding:15px}.checkbox-group legend{font-weight:600;color:#333;padding:0 5px}.checkbox-item{display:flex;align-items:center}.checkbox-item input{margin-right:10px;width:18px;height:18px}
+        /* --- Modal CSS --- */
+        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:center}.modal-content{background-color:var(--primary-bg);padding:25px;border-radius:8px;width:90%;max-width:800px;box-shadow:0 5px 15px rgba(0,0,0,.3);position:relative}.modal-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border-color);padding-bottom:15px;margin-bottom:20px}.modal-header h2{margin:0;color:var(--main-header-text)}.modal-close-btn{font-size:24px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#888}.modal-body{display:flex;gap:20px;max-height:60vh;overflow-y:auto}.modal-list-pane{flex:1}.modal-form-pane{flex:2}#template-list li,#points-list li{list-style:none;padding:10px;background-color:var(--white);border:1px solid var(--border-color);border-radius:4px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}#template-list li:hover,#points-list li:hover{background-color:#e9ecef}#template-list li.active,#points-list li.active{background-color:var(--btn-primary-bg);color:#fff;font-weight:700}.list-item-controls button{background:0 0;border:none;cursor:pointer;font-size:14px;margin-left:8px;visibility:hidden}.list-item-controls button:hover{transform:scale(1.2)}#template-list li:hover .list-item-controls,#points-list li:hover .list-item-controls{visibility:visible}#master-point-list{max-height:300px;overflow-y:auto;background-color:var(--white);border:1px solid var(--border-color);padding:15px;border-radius:4px}
+        .point-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; }
+        .point-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .point-list li:last-child { border-bottom: none; }
+        .point-list button { font-size: 18px; cursor: pointer; background: none; border: none; }
+        #available-points-search { width: 100%; margin-bottom: 10px; }.modal-footer{margin-top:20px;display:flex;justify-content:space-between;align-items:center}.form-row{display:flex;gap:15px}.form-row .form-group{flex:1}
+    </style>
+</head>
+<body>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <h2>Panel Overview</h2>
+            <input type="search" id="search-bar" class="search-bar" placeholder="🔍 Search equipment...">
+            <ul id="panel-list" class="panel-list"></ul>
+            <div class="sidebar-footer">
+                <button id="add-panel-btn" class="btn btn-secondary">+ Add New Panel</button>
+            </div>
+        </aside>
+        <main class="main-content">
+            <div class="header">
+                <h1 id="main-header">Workspace</h1>
+                <button id="manage-library-btn" class="btn-link">⚙️ Manage Equipment & Point Libraries</button>
+            </div>
+            <div class="stage">
+                <h3 id="form-title">Add New Equipment</h3>
+                <form id="equipment-form">
+                    <input type="hidden" id="editing-id">
+                    <div class="form-row">
+                        <div class="form-group"><label for="panel-name">Panel Name</label><input type="text" id="panel-name" placeholder="Select a panel" required></div>
+                        <div class="form-group"><label for="floor-name">Floor</label><input type="text" id="floor-name" placeholder="Select a panel" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:3"><label for="instance-name">Equipment Instance Name</label><input type="text" id="instance-name" placeholder="e.g., AHU-01" required></div>
+                        <div class="form-group"><label for="quantity">Quantity</label><input type="number" id="quantity" value="1" min="1" required></div>
+                    </div>
+                    <div class="form-group"><label for="equipment-type">Equipment Type</label><select id="equipment-type" required><option value="">--- Select ---</option></select></div>
+                    <div id="point-configuration"><h4>Configure Points</h4><div id="checkbox-container" class="checkbox-group"></div></div>
+                    <div id="submit-button-container"><button type="submit" class="btn btn-primary">Add Equipment to Schedule</button></div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <div id="add-panel-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header"><h2>Add New Panel</h2><button class="modal-close-btn">&times;</button></div>
+            <form id="add-panel-form">
+                <div class="form-group"><label for="new-panel-name">Panel Name</label><input type="text" id="new-panel-name" required></div>
+                <div class="form-group"><label for="new-panel-floor">Floor</label><input type="text" id="new-panel-floor" required></div>
+                <div class="modal-footer" style="justify-content: flex-end;"><button type="submit" class="btn btn-primary">Save Panel</button></div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="equipment-library-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Manage Equipment Library</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="modal-body">
+                <div class="modal-list-pane">
+                    <h4>Equipment Types</h4>
+                    <ul id="template-list"></ul>
+                    <button id="new-template-btn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">+ New Type</button>
+                </div>
+                <div class="modal-form-pane">
+                    <form id="template-form">
+                        <input type="hidden" id="editing-template-key">
+                        <h4 id="template-form-title">Add New Equipment Type</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label for="template-name">Display Name</label><input type="text" id="template-name" required></div>
+                            <div class="form-group"><label for="template-key">Type Key</label><input type="text" id="template-key" required></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Points</label>
+                            <ul id="assigned-points-list" class="point-list"></ul>
+                        </div>
+                        <div class="form-group">
+                            <label>Available Points</label>
+                            <button type="button" id="manage-points-btn" class="btn-link" style="font-size: 12px; margin-left: 10px;">(Manage Point Library)</button>
+                            <input type="text" id="available-points-search" placeholder="Search available points...">
+                            <ul id="available-points-list" class="point-list"></ul>
+                        </div>
+                        <div class="modal-footer"><button type="submit" class="btn btn-primary">Save Template</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="points-library-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Manage Points Library</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="modal-body">
+                <div class="modal-list-pane">
+                    <h4>All Points</h4>
+                    <ul id="points-list"></ul>
+                    <button id="new-point-btn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">+ New Point</button>
+                </div>
+                <div class="modal-form-pane">
+                    <form id="point-form">
+                        <input type="hidden" id="editing-point-id">
+                        <h4 id="point-form-title">Add New Point</h4>
+                        <div class="form-group"><label for="point-name">Point Name</label><input type="text" id="point-name" required></div>
+                        <div class="form-row">
+                            <div class="form-group"><label for="point-type">Point Type</label>
+                                <select id="point-type" required>
+                                    <option value="AI">AI (Analog Input)</option><option value="AO">AO (Analog Output)</option>
+                                    <option value="DI">DI (Digital Input)</option><option value="DO">DO (Digital Output)</option>
+                                    <option value="Modbus">Modbus</option><option value="BACnet">BACnet</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label for="part-number">Part Number (Optional)</label><input type="text" id="part-number"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" id="delete-point-btn" class="btn btn-danger" style="visibility: hidden;">Delete</button>
+                            <button type="submit" class="btn btn-primary">Save Point</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- GLOBAL STATE & DOM REFS ---
+    let appData = {
+        panels: [],
+        scheduledEquipment: [],
+        pointTemplates: {},
+        equipmentTemplates: {}
+    };
+    const panelList = document.getElementById("panel-list"),
+        searchBar = document.getElementById("search-bar"),
+        form = document.getElementById("equipment-form"),
+        equipmentTypeSelect = document.getElementById("equipment-type"),
+        pointConfigContainer = document.getElementById("point-configuration"),
+        checkboxContainer = document.getElementById("checkbox-container"),
+        formTitle = document.getElementById("form-title"),
+        mainHeader = document.getElementById("main-header"),
+        submitButtonContainer = document.getElementById("submit-button-container"),
+        editingIdInput = document.getElementById("editing-id"),
+        panelNameInput = document.getElementById("panel-name"),
+        floorNameInput = document.getElementById("floor-name"),
+        addPanelBtn = document.getElementById("add-panel-btn"),
+        manageLibraryBtn = document.getElementById("manage-library-btn"),
+        quantityInput = document.getElementById("quantity");
+    const addPanelModal = document.getElementById("add-panel-modal"),
+        addPanelForm = document.getElementById("add-panel-form");
+    const equipmentLibraryModal = document.getElementById("equipment-library-modal"),
+        templateList = document.getElementById("template-list"),
+        newTemplateBtn = document.getElementById("new-template-btn"),
+        templateForm = document.getElementById("template-form"),
+        templateFormTitle = document.getElementById("template-form-title"),
+        editingTemplateKeyInput = document.getElementById("editing-template-key"),
+        managePointsBtn = document.getElementById("manage-points-btn");
+    const pointsLibraryModal = document.getElementById("points-library-modal"),
+        pointsList = document.getElementById("points-list"),
+        newPointBtn = document.getElementById("new-point-btn"),
+        pointForm = document.getElementById("point-form"),
+        pointFormTitle = document.getElementById("point-form-title"),
+        editingPointIdInput = document.getElementById("editing-point-id"),
+        deletePointBtn = document.getElementById("delete-point-btn");
+    const assignedPointsList = document.getElementById('assigned-points-list'),
+        availablePointsList = document.getElementById('available-points-list'),
+        availablePointsSearch = document.getElementById('available-points-search');
+
+    // --- API & DATA ---
+
+    async function apiCall(url, method = "GET", body = null) {
+        try {
+            const options = {
+                method,
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({
+                    error: "An unknown server error occurred."
+                }));
+                throw new Error(err.error || `Server responded with status ${response.status}`);
+            }
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                return await response.json();
+            }
+            return null;
+        } catch (error) {
+            console.error(`API call failed for ${method} ${url}:`, error);
+            alert(`Error: ${error.message}`);
+            throw error;
+        }
+    }
+    async function loadInitialData() {
+        appData = await apiCall("/api/data");
+        renderSidebar();
+        populateEquipmentTypes();
+        resetForm()
+    }
+
+    // --- MODAL GENERIC HANDLERS ---
+    function setupModal(modal, openBtn, closeSelector, onOpen = null) {
+        const closeBtns = modal.querySelectorAll(closeSelector);
+        openBtn.addEventListener("click", () => {
+            if (onOpen) {
+                onOpen();
+            }
+            modal.style.display = "flex";
+        });
+        closeBtns.forEach(btn => btn.addEventListener("click", () => modal.style.display = "none"));
+    }
+    setupModal(addPanelModal, addPanelBtn, ".modal-close-btn");
+    setupModal(equipmentLibraryModal, manageLibraryBtn, ".modal-close-btn", renderEquipmentLibraryModal);
+    setupModal(pointsLibraryModal, managePointsBtn, ".modal-close-btn", renderPointsModal);
+
+    // --- PANEL LOGIC ---
+    async function handleAddPanel(event) {
+        event.preventDefault();
+        const panelName = addPanelForm["new-panel-name"].value,
+            floor = addPanelForm["new-panel-floor"].value;
+        if (appData.panels.some(p => p.panelName.toLowerCase() === panelName.toLowerCase())) return alert("A panel with this name already exists.");
+        await apiCall("/api/panel", "POST", {
+            panelName,
+            floor
+        });
+        addPanelModal.style.display = "none";
+        await loadInitialData();
+        setTimeout(() => selectPanel(panelName, floor), 0)
+    }
+
+    // --- POINT LIBRARY LOGIC ---
+    function renderPointsModal() {
+        pointsList.innerHTML = "";
+        Object.values(appData.pointTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(point => {
+            const li = document.createElement("li");
+            li.innerHTML = `<span>${point.name} <small>(${point.point_type})</small></span>`;
+            li.dataset.id = point.id;
+            li.onclick = () => loadPointForEdit(point.id);
+            pointsList.appendChild(li)
+        });
+        resetPointForm()
+    }
+
+    function resetPointForm() {
+        pointForm.reset();
+        editingPointIdInput.value = "";
+        pointFormTitle.textContent = "Add New Point";
+        deletePointBtn.style.visibility = "hidden"
+    }
+
+    function loadPointForEdit(id) {
+        resetPointForm();
+        const point = appData.pointTemplates[id];
+        if (!point) return;
+        document.querySelectorAll("#points-list li").forEach(li => li.classList.remove("active"));
+        document.querySelector(`#points-list li[data-id='${id}']`).classList.add("active");
+        editingPointIdInput.value = id;
+        pointForm["point-name"].value = point.name;
+        pointForm["point-type"].value = point.point_type;
+        pointForm["part-number"].value = point.part_number;
+        pointFormTitle.textContent = `Editing: ${point.name}`;
+        deletePointBtn.style.visibility = "visible"
+    }
+    async function handlePointFormSubmit(event) {
+        event.preventDefault();
+        const id = editingPointIdInput.value,
+            data = {
+                name: pointForm["point-name"].value,
+                point_type: pointForm["point-type"].value,
+                part_number: pointForm["part-number"].value || null
+            };
+        const method = id ? "PUT" : "POST",
+            url = id ? `/api/points/${id}` : "/api/points";
+        await apiCall(url, method, data);
+        await loadInitialData();
+        renderPointsModal();
+        const editingKey = editingTemplateKeyInput.value;
+        if (editingKey) {
+            loadTemplateForEdit(editingKey);
+        } else {
+            resetTemplateForm();
+        }
+    }
+    async function handleDeletePoint() {
+        if (!confirm("Are you sure you want to delete this point? This cannot be undone.")) return;
+        const id = editingPointIdInput.value;
+        await apiCall(`/api/points/${id}`, "DELETE");
+        await loadInitialData();
+        renderPointsModal();
+        const editingKey = editingTemplateKeyInput.value;
+        if (editingKey) {
+            loadTemplateForEdit(editingKey);
+        } else {
+            resetTemplateForm();
+        }
+    }
+
+    // --- EQUIPMENT LIBRARY LOGIC ---
+    function movePoint(pointId, action, quantity = 1) {
+        const point = appData.pointTemplates[pointId];
+        const sourceList = action === 'add' ? availablePointsList : assignedPointsList;
+        const destList = action === 'add' ? assignedPointsList : availablePointsList;
+
+        const li = document.createElement('li');
+        li.dataset.id = point.id;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = point.name;
+        li.appendChild(nameSpan);
+
+        const controls = document.createElement('span');
+
+        if (action === 'add') {
+            const quantityInput = document.createElement('input');
+            quantityInput.type = 'number';
+            quantityInput.value = quantity;
+            quantityInput.min = 1;
+            quantityInput.style.width = '50px';
+            quantityInput.onchange = (e) => {
+                li.dataset.quantity = e.target.value;
+            };
+            li.dataset.quantity = quantity;
+            controls.appendChild(quantityInput);
+        }
+
+        const moveBtn = document.createElement('button');
+        moveBtn.textContent = action === 'add' ? '−' : '+';
+        moveBtn.onclick = () => movePoint(point.id, action === 'add' ? 'remove' : 'add');
+        controls.appendChild(moveBtn);
+        
+        li.appendChild(controls);
+        destList.appendChild(li);
+
+        sourceList.querySelector(`li[data-id='${pointId}']`).remove();
+    }
+
+    function renderEquipmentLibraryModal() {
+        templateList.innerHTML = "";
+        Object.keys(appData.equipmentTemplates).sort((a, b) => appData.equipmentTemplates[a].name.localeCompare(appData.equipmentTemplates[b].name)).forEach(key => {
+            const template = appData.equipmentTemplates[key];
+            const li = document.createElement("li");
+            li.innerHTML = `<span>${template.name}</span><span class="list-item-controls"><button title="Replicate">📋</button></span>`;
+            li.dataset.key = key;
+            li.onclick = () => loadTemplateForEdit(key);
+            li.querySelector("button").onclick = async e => {
+                e.stopPropagation();
+                await apiCall(`/api/equipment_templates/${key}/replicate`, "POST");
+                await loadInitialData();
+                renderEquipmentLibraryModal()
+            };
+            templateList.appendChild(li)
+        });
+        resetTemplateForm();
+    }
+
+    function resetTemplateForm() {
+        templateForm.reset();
+        editingTemplateKeyInput.value = "";
+        templateFormTitle.textContent = "Add New Equipment Type";
+        templateForm.querySelector("button").textContent = "Save Template";
+        document.querySelectorAll("#template-list li").forEach(li => li.classList.remove("active"));
+        assignedPointsList.innerHTML = '';
+        availablePointsList.innerHTML = '';
+        Object.values(appData.pointTemplates).forEach(point => {
+            const li = document.createElement('li');
+            li.dataset.id = point.id;
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = point.name;
+            li.appendChild(nameSpan);
+
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '+';
+            addBtn.onclick = () => movePoint(point.id, 'add');
+            
+            const controls = document.createElement('span');
+            controls.appendChild(addBtn);
+            li.appendChild(controls);
+            availablePointsList.appendChild(li);
+        });
+    }
+
+    function loadTemplateForEdit(key) {
+        resetTemplateForm();
+        const template = appData.equipmentTemplates[key];
+        if (!template) return;
+
+        document.querySelectorAll("#template-list li").forEach(li => li.classList.remove("active"));
+        document.querySelector(`#template-list li[data-key='${key}']`).classList.add("active");
+        editingTemplateKeyInput.value = key;
+        templateForm["template-name"].value = template.name;
+        templateForm["template-key"].value = key;
+        templateFormTitle.textContent = `Editing: ${template.name}`;
+        templateForm.querySelector("button").textContent = "Update Template";
+
+        const assignedPointIds = new Set(template.points.map(p => p.id));
+
+        Object.values(appData.pointTemplates).forEach(point => {
+            if (assignedPointIds.has(point.id)) {
+                const templatePoint = template.points.find(p => p.id === point.id);
+                movePoint(point.id, 'add', templatePoint.quantity);
+            }
+        });
+    }
+    async function handleTemplateFormSubmit(event) {
+        event.preventDefault();
+        const editingKey = editingTemplateKeyInput.value;
+        const points = Array.from(assignedPointsList.querySelectorAll("li")).map(li => ({
+            id: parseInt(li.dataset.id),
+            quantity: parseInt(li.dataset.quantity)
+        }));
+        const data = {
+            name: templateForm["template-name"].value,
+            typeKey: templateForm["template-key"].value,
+            points: points
+        };
+        const url = editingKey ? `/api/equipment_templates/${editingKey}` : "/api/equipment_templates",
+            method = editingKey ? "PUT" : "POST";
+        const result = await apiCall(url, method, data);
+        await loadInitialData();
+        renderEquipmentLibraryModal();
+        if (result) {
+            const newKey = Object.keys(result)[0];
+            loadTemplateForEdit(newKey);
+        }
+    }
+
+    // --- MAIN APP LOGIC ---
+    async function renderSidebar() {
+        panelList.innerHTML = "";
+        for (const panel of appData.panels) {
+            const equipmentInPanel = appData.scheduledEquipment.filter(item => item.panelName === panel.panelName);
+            const details = document.createElement("details");
+            details.open = !0;
+            const summary = document.createElement("summary");
+            summary.textContent = `${panel.panelName} (${panel.floor})`;
+            summary.dataset.panelName = panel.panelName;
+            summary.onclick = () => selectPanel(panel.panelName, panel.floor);
+            details.appendChild(summary);
+
+            const pointSummary = await apiCall(`/api/panel/${panel.id}/point_summary`);
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'point-summary';
+            summaryDiv.innerHTML = Object.entries(pointSummary).map(([key, value]) => `<span>${key}: ${value}</span>`).join('');
+            details.appendChild(summaryDiv);
+
+            const sublist = document.createElement("ul");
+            sublist.className = "equipment-sublist";
+            equipmentInPanel.forEach(item => {
+                const listItem = document.createElement("li");
+                const link = document.createElement("a");
+                link.textContent = `${item.instanceName} (x${item.quantity})`;
+                link.dataset.id = item.id;
+                link.onclick = e => {
+                    e.stopPropagation();
+                    loadEquipmentForEdit(item.id)
+                };
+                listItem.appendChild(link);
+                sublist.appendChild(listItem)
+            });
+            details.appendChild(sublist);
+            panelList.appendChild(details)
+        }
+    }
+
+    function populateEquipmentTypes() {
+        equipmentTypeSelect.innerHTML = '<option value="">--- Select ---</option>';
+        Object.keys(appData.equipmentTemplates).sort((a, b) => appData.equipmentTemplates[a].name.localeCompare(appData.equipmentTemplates[b].name)).forEach(key => {
+            const template = appData.equipmentTemplates[key];
+            const option = document.createElement("option");
+            option.value = key;
+            option.textContent = template.name;
+            equipmentTypeSelect.appendChild(option)
+        })
+    }
+
+    function selectPanel(panelName, floor) {
+        resetForm();
+        panelNameInput.value = panelName;
+        floorNameInput.value = floor;
+        panelNameInput.readOnly = !0;
+        floorNameInput.readOnly = !0;
+        document.querySelectorAll(".panel-list summary").forEach(s => s.classList.remove("active"));
+        const summaryEl = document.querySelector(`.panel-list summary[data-panel-name='${panelName}']`);
+        summaryEl && summaryEl.classList.add("active");
+        formTitle.textContent = `Add Equipment to ${panelName}`
+    }
+
+    function renderCheckboxes(equipmentTypeKey) {
+        checkboxContainer.innerHTML = "";
+        pointConfigContainer.style.display = "none";
+        if (!equipmentTypeKey || !appData.equipmentTemplates[equipmentTypeKey]) return;
+        const template = appData.equipmentTemplates[equipmentTypeKey];
+        const pointGroups = template.points.reduce((acc, pointData) => {
+            const point = appData.pointTemplates[pointData.id];
+            if(point) {
+                const point_with_quantity = {...point, quantity: pointData.quantity };
+                (acc[point.point_type] || (acc[point.point_type] = [])).push(point_with_quantity);
+            }
+            return acc
+        }, {});
+        Object.keys(pointGroups).sort().forEach(groupName => {
+            const fieldset = document.createElement("fieldset");
+            const legend = document.createElement("legend");
+            legend.textContent = groupName;
+            fieldset.appendChild(legend);
+            pointGroups[groupName].sort((a, b) => a.name.localeCompare(b.name)).forEach(point => {
+                const itemDiv = document.createElement("div");
+                itemDiv.className = "checkbox-item";
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.id = `point-${point.id}`;
+                checkbox.value = point.id;
+                const label = document.createElement("label");
+                label.htmlFor = `point-${point.id}`;
+                label.textContent = `${point.name} (x${point.quantity}) ${point.part_number?`(${point.part_number})`:""}`;
+                itemDiv.append(checkbox, label);
+                fieldset.appendChild(itemDiv)
+            });
+            checkboxContainer.appendChild(fieldset)
+        });
+        pointConfigContainer.style.display = "block"
+    }
+
+    function loadEquipmentForEdit(id) {
+        const item = appData.scheduledEquipment.find(e => e.id === id);
+        if (!item) return;
+        resetForm();
+        document.querySelectorAll(".equipment-sublist a").forEach(a => a.classList.remove("active"));
+        document.querySelector(`.equipment-sublist a[data-id='${id}']`).classList.add("active");
+        const panel = appData.panels.find(p => p.panelName === item.panelName);
+        panelNameInput.value = item.panelName;
+        floorNameInput.value = panel.floor;
+        form["instance-name"].value = item.instanceName;
+        quantityInput.value = item.quantity;
+        form["equipment-type"].value = item.type;
+        editingIdInput.value = item.id;
+        renderCheckboxes(item.type);
+        item.selectedPoints.forEach(pointId => {
+            const checkbox = document.getElementById(`point-${pointId}`);
+            if (checkbox) checkbox.checked = !0
+        });
+        formTitle.textContent = `Editing: ${item.instanceName}`;
+        mainHeader.textContent = `Editing Equipment`;
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button>`;
+        panelNameInput.readOnly = !1;
+        floorNameInput.readOnly = !1
+    }
+
+    function resetForm() {
+        form.reset();
+        editingIdInput.value = "";
+        quantityInput.value = 1;
+        pointConfigContainer.style.display = "none";
+        checkboxContainer.innerHTML = "";
+        document.querySelectorAll(".panel-list summary, .equipment-sublist a").forEach(el => el.classList.remove("active"));
+        formTitle.textContent = "Add New Equipment";
+        mainHeader.textContent = "Workspace";
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button>`;
+        panelNameInput.readOnly = !1;
+        floorNameInput.readOnly = !1
+    }
+    async function handleFormSubmit(event) {
+        event.preventDefault();
+        const editingId = parseInt(editingIdInput.value);
+        const selectedPoints = Array.from(checkboxContainer.querySelectorAll("input:checked")).map(cb => parseInt(cb.value));
+        const data = {
+            panelName: panelNameInput.value,
+            floor: floorNameInput.value,
+            instanceName: form["instance-name"].value,
+            quantity: parseInt(quantityInput.value),
+            type: form["equipment-type"].value,
+            selectedPoints: selectedPoints
+        };
+        const url = editingId ? `/api/equipment/${editingId}` : "/api/equipment",
+            method = editingId ? "PUT" : "POST";
+        await apiCall(url, method, data);
+        await loadInitialData()
+    }
+
+    function handleSearch() {
+        const query = searchBar.value.toLowerCase();
+        document.querySelectorAll(".panel-list details").forEach(details => {
+            const items = Array.from(details.querySelectorAll("li"));
+            const panelText = details.querySelector("summary").textContent.toLowerCase();
+            let hasVisibleItem = !1;
+            items.forEach(li => {
+                const isVisible = li.textContent.toLowerCase().includes(query);
+                li.style.display = isVisible ? "" : "none", isVisible && (hasVisibleItem = !0)
+            });
+            details.style.display = panelText.includes(query) || hasVisibleItem ? "" : "none"
+        })
+    }
+    
+    function handleAvailablePointsSearch() {
+        const query = availablePointsSearch.value.toLowerCase();
+        document.querySelectorAll("#available-points-list li").forEach(li => {
+            const isVisible = li.textContent.toLowerCase().includes(query);
+            li.style.display = isVisible ? "flex" : "none";
+        });
+    }
+
+    // --- EVENT LISTENERS ---
+    document.addEventListener("DOMContentLoaded", loadInitialData);
+    addPanelForm.addEventListener("submit", handleAddPanel);
+    pointForm.addEventListener("submit", handlePointFormSubmit);
+    deletePointBtn.addEventListener("click", handleDeletePoint);
+    templateForm.addEventListener("submit", handleTemplateFormSubmit);
+    form.addEventListener("submit", handleFormSubmit);
+    newPointBtn.addEventListener("click", resetPointForm);
+    newTemplateBtn.addEventListener("click", resetTemplateForm);
+    searchBar.addEventListener("input", handleSearch);
+    availablePointsSearch.addEventListener('input', handleAvailablePointsSearch);
+    mainHeader.addEventListener("click", resetForm);
+    equipmentTypeSelect.addEventListener("change", e => renderCheckboxes(e.target.value));
+</script>
+</body>
+</html>
