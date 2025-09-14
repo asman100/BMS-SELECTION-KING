@@ -110,17 +110,15 @@
                     <form id="point-form">
                         <input type="hidden" id="editing-point-id">
                         <h4 id="point-form-title">Add New Point</h4>
-                        <div class="form-group"><label for="point-name">Point Name</label><input type="text" id="point-name" required></div>
-                        <div class="form-row">
-                            <div class="form-group"><label for="point-type">Point Type</label>
-                                <select id="point-type" required>
-                                    <option value="AI">AI (Analog Input)</option><option value="AO">AO (Analog Output)</option>
-                                    <option value="DI">DI (Digital Input)</option><option value="DO">DO (Digital Output)</option>
-                                    <option value="Modbus">Modbus</option><option value="BACnet">BACnet</option>
-                                </select>
-                            </div>
-                            <div class="form-group"><label for="part-number">Part Number (Optional)</label><input type="text" id="part-number"></div>
+                        <div class="form-group">
+                            <label for="point-name">Point Name</label>
+                            <input type="text" id="point-name" required>
                         </div>
+                        <div class="form-group">
+                            <label for="point-quantity">Quantity</label>
+                            <input type="number" id="point-quantity" value="1" min="1" required>
+                        </div>
+                        <div id="sub-points-container"></div>
                         <div class="modal-footer">
                             <button type="button" id="delete-point-btn" class="btn btn-danger" style="visibility: hidden;">Delete</button>
                             <button type="submit" class="btn btn-primary">Save Point</button>
@@ -173,6 +171,7 @@
     const assignedPointsList = document.getElementById('assigned-points-list'),
         availablePointsList = document.getElementById('available-points-list'),
         availablePointsSearch = document.getElementById('available-points-search');
+    const subPointsContainer = document.getElementById('sub-points-container');
 
     // --- API & DATA ---
 
@@ -247,7 +246,8 @@
         pointsList.innerHTML = "";
         Object.values(appData.pointTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(point => {
             const li = document.createElement("li");
-            li.innerHTML = `<span>${point.name} <small>(${point.point_type})</small></span>`;
+            const sub_points_str = point.sub_points.map(sp => sp.point_type).join(', ');
+            li.innerHTML = `<span>${point.name} <small>(${sub_points_str})</small></span>`;
             li.dataset.id = point.id;
             li.onclick = () => loadPointForEdit(point.id);
             pointsList.appendChild(li)
@@ -259,7 +259,37 @@
         pointForm.reset();
         editingPointIdInput.value = "";
         pointFormTitle.textContent = "Add New Point";
-        deletePointBtn.style.visibility = "hidden"
+        deletePointBtn.style.visibility = "hidden";
+        subPointsContainer.innerHTML = '';
+        renderSubPoints();
+    }
+
+    function renderSubPoints(sub_points = []) {
+        subPointsContainer.innerHTML = '';
+        const quantity = parseInt(pointForm['point-quantity'].value) || 1;
+        for (let i = 0; i < quantity; i++) {
+            const sub_point = sub_points[i] || {};
+            const div = document.createElement('div');
+            div.className = 'form-row';
+            div.innerHTML = `
+                <div class="form-group">
+                    <label>Sub-Point ${i + 1} Name</label>
+                    <input type="text" class="sub-point-name" value="${sub_point.name || ''}" required>
+                </div>
+                <div class="form-group">
+                    <label>Sub-Point ${i + 1} Type</label>
+                    <select class="sub-point-type" required>
+                        <option value="AI" ${sub_point.point_type === 'AI' ? 'selected' : ''}>AI (Analog Input)</option>
+                        <option value="AO" ${sub_point.point_type === 'AO' ? 'selected' : ''}>AO (Analog Output)</option>
+                        <option value="DI" ${sub_point.point_type === 'DI' ? 'selected' : ''}>DI (Digital Input)</option>
+                        <option value="DO" ${sub_point.point_type === 'DO' ? 'selected' : ''}>DO (Digital Output)</option>
+                        <option value="Modbus" ${sub_point.point_type === 'Modbus' ? 'selected' : ''}>Modbus</option>
+                        <option value="BACnet" ${sub_point.point_type === 'BACnet' ? 'selected' : ''}>BACnet</option>
+                    </select>
+                </div>
+            `;
+            subPointsContainer.appendChild(div);
+        }
     }
 
     function loadPointForEdit(id) {
@@ -270,19 +300,23 @@
         document.querySelector(`#points-list li[data-id='${id}']`).classList.add("active");
         editingPointIdInput.value = id;
         pointForm["point-name"].value = point.name;
-        pointForm["point-type"].value = point.point_type;
-        pointForm["part-number"].value = point.part_number;
+        pointForm['point-quantity'].value = point.quantity;
+        renderSubPoints(point.sub_points);
         pointFormTitle.textContent = `Editing: ${point.name}`;
         deletePointBtn.style.visibility = "visible"
     }
     async function handlePointFormSubmit(event) {
         event.preventDefault();
-        const id = editingPointIdInput.value,
-            data = {
-                name: pointForm["point-name"].value,
-                point_type: pointForm["point-type"].value,
-                part_number: pointForm["part-number"].value || null
-            };
+        const id = editingPointIdInput.value;
+        const sub_points = Array.from(subPointsContainer.querySelectorAll('.form-row')).map(row => ({
+            name: row.querySelector('.sub-point-name').value,
+            point_type: row.querySelector('.sub-point-type').value
+        }));
+        const data = {
+            name: pointForm["point-name"].value,
+            quantity: parseInt(pointForm['point-quantity'].value),
+            sub_points: sub_points
+        };
         const method = id ? "PUT" : "POST",
             url = id ? `/api/points/${id}` : "/api/points";
         await apiCall(url, method, data);
@@ -319,7 +353,8 @@
         li.dataset.id = point.id;
         
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = point.name;
+        const sub_points_str = point.sub_points.map(sp => sp.point_type).join(', ');
+        nameSpan.innerHTML = `${point.name} <small>(${sub_points_str})</small>`;
         li.appendChild(nameSpan);
 
         const controls = document.createElement('span');
@@ -379,7 +414,8 @@
             const li = document.createElement('li');
             li.dataset.id = point.id;
             const nameSpan = document.createElement('span');
-            nameSpan.textContent = point.name;
+            const sub_points_str = point.sub_points.map(sp => sp.point_type).join(', ');
+            nameSpan.innerHTML = `${point.name} <small>(${sub_points_str})</small>`;
             li.appendChild(nameSpan);
 
             const addBtn = document.createElement('button');
@@ -508,7 +544,9 @@
             const point = appData.pointTemplates[pointData.id];
             if(point) {
                 const point_with_quantity = {...point, quantity: pointData.quantity };
-                (acc[point.point_type] || (acc[point.point_type] = [])).push(point_with_quantity);
+                for(const sp of point.sub_points) {
+                    (acc[sp.point_type] || (acc[sp.point_type] = [])).push(point_with_quantity);
+                }
             }
             return acc
         }, {});
@@ -526,7 +564,8 @@
                 checkbox.value = point.id;
                 const label = document.createElement("label");
                 label.htmlFor = `point-${point.id}`;
-                label.textContent = `${point.name} (x${point.quantity}) ${point.part_number?`(${point.part_number})`:""}`;
+                const sub_points_str = point.sub_points.map(sp => sp.point_type).join(', ');
+                label.innerHTML = `${point.name} (x${point.quantity}) <small>(${sub_points_str})</small> `;
                 itemDiv.append(checkbox, label);
                 fieldset.appendChild(itemDiv)
             });
@@ -617,6 +656,7 @@
     document.addEventListener("DOMContentLoaded", loadInitialData);
     addPanelForm.addEventListener("submit", handleAddPanel);
     pointForm.addEventListener("submit", handlePointFormSubmit);
+    pointForm['point-quantity'].addEventListener('change', () => renderSubPoints());
     deletePointBtn.addEventListener("click", handleDeletePoint);
     templateForm.addEventListener("submit", handleTemplateFormSubmit);
     form.addEventListener("submit", handleFormSubmit);

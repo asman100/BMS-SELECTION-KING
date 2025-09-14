@@ -1,0 +1,50 @@
+# Project Summary: BMS Selection Tool
+
+## 1. Project Overview
+
+This is a web-based tool for managing Building Management System (BMS) configurations. It allows users to create and manage a library of BMS points and equipment templates, and then use these templates to build a schedule of equipment for a project.
+
+The application is built with a Flask backend and a SQLite database. The frontend is a single-page application built with vanilla JavaScript and communicates with the backend via a RESTful API.
+
+### Key Features:
+
+*   **Panel Management:** Create and manage panels, which represent physical locations for equipment.
+*   **Point Library:** Create and manage a master library of BMS points. Each point can be a single point or a "bundle" of sub-points, each with its own name and type (e.g., a "Temp/Humidity Sensor" with two sub-points: "Temperature" (AI) and "Humidity" (AI)).
+*   **Equipment Template Library:** Create and manage a library of equipment templates. Each template has a name, a type key, and a list of assigned points from the point library.
+*   **Equipment Scheduling:** Add equipment to panels by selecting an equipment template and specifying a quantity.
+*   **Point Accumulation:** The sidebar displays a summary of the total number of points of each type for each panel.
+
+## 2. Work Done
+
+Here is a summary of the work that has been completed on the project:
+
+### Features Implemented:
+
+*   **Point Bundles:**
+    *   The database schema was updated to support "point bundles", where a single `PointTemplate` can contain multiple `SubPointTemplate`s.
+    *   The "Manage Points Library" modal was updated to allow creating and editing these bundled points, including specifying the quantity and types of sub-points.
+    *   The application now displays the sub-point types for each point bundle in the various lists.
+*   **Point Quantity in Equipment Templates:**
+    *   The database schema was updated to allow a quantity to be stored for each point within an equipment template.
+    *   The "Manage Equipment Library" modal was updated to allow users to specify a quantity for each assigned point.
+*   **Point Accumulation in Panels:**
+    *   A new API endpoint was created to calculate the total number of points of each type for a given panel.
+    *   The sidebar now displays a summary of the accumulated point counts for each panel.
+*   **Independent Point and Equipment Template Management:**
+    *   The workflow for managing points and equipment templates was decoupled. Adding or editing a point in the library no longer automatically adds it to any equipment templates.
+    *   The equipment template editor was redesigned with a two-list system ("Assigned Points" and "Available Points") to make it more intuitive to manage the points assigned to a template.
+
+### Bug Fixes:
+
+*   **Sidebar Interaction:** Fixed a JavaScript error that was preventing the sidebar and other interactive elements from initializing correctly.
+*   **Initial Data Loading:** Fixed an issue where the saved equipment types and points were not visible until after a new item was added.
+*   **Point List Refresh:** Fixed a bug that was preventing the "Available Points" list in the equipment template editor from refreshing immediately after a new point was added or deleted.
+
+## 3. Project Structure
+
+*   `app.py`: The main Flask application file. It contains the backend logic, API routes, and database models.
+*   `bms_tool.db`: The SQLite database file.
+*   `templates/index.html`: The main HTML file for the frontend. It contains the structure of the application and the JavaScript code for the frontend logic.
+*   `project_summary.txt`: This file.
+
+I hope this summary is helpful for you to pick up where we left off. Let me know if you have any other questions!
