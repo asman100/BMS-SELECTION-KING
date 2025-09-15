@@ -32,8 +32,9 @@ class Project(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 class Part(db.Model):
+    __table_args__ = (db.UniqueConstraint('part_number', name='uq_part_number'),)
     id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    # Global catalog: project_id dropped logically (legacy column may linger in sqlite file)
     part_number = db.Column(db.String(120), nullable=False)
     description = db.Column(db.String(255), nullable=False)
     category = db.Column(db.String(120))
@@ -218,9 +219,11 @@ def get_all_data(project_id):
 
     panels = [p.to_dict() for p in Panel.query.filter_by(project_id=project_id).all()]
     scheduled_equipment = [e.to_dict() for e in ScheduledEquipment.query.filter_by(project_id=project_id).all()]
-    point_templates = {pt.id: pt.to_dict() for pt in PointTemplate.query.filter_by(project_id=project_id).all()}
-    equipment_templates = {et.type_key: et.to_dict() for et in EquipmentTemplate.query.filter_by(project_id=project_id).all()}
-    parts = {p.id: p.to_dict() for p in Part.query.filter_by(project_id=project_id).all()}
+    # Point & equipment templates now treated as global (still retain stored project_id for provenance)
+    point_templates = {pt.id: pt.to_dict() for pt in PointTemplate.query.all()}
+    equipment_templates = {et.type_key: et.to_dict() for et in EquipmentTemplate.query.all()}
+    # Global parts (sorted for stable UI)
+    parts = {p.id: p.to_dict() for p in Part.query.order_by(Part.part_number).all()}
     
     return jsonify({
         "panels": panels,
@@ -275,6 +278,24 @@ def panel_point_summary(panel_id):
                     summary[sp.point_type] = summary.get(sp.point_type, 0) + point_repeat
 
     return jsonify(summary), 200
+@app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
+@login_required
+def delete_panel(project_id, panel_id):
+    """Delete a panel (and its scheduled equipment via cascade) after strong confirmation."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    panel = Panel.query.get_or_404(panel_id)
+    if panel.project_id != project_id:
+        return jsonify({"error": "Panel does not belong to project"}), 400
+    data = request.get_json() or {}
+    if data.get('confirmName') != panel.panel_name or data.get('confirmWord') != 'DELETE':
+        return jsonify({"error": "Confirmation mismatch"}), 400
+    panel_name = panel.panel_name
+    db.session.delete(panel)
+    db.session.commit()
+    broadcast_update(project_id)
+    return jsonify({"message": f"Panel '{panel_name}' deleted"}), 200
 @app.route('/api/equipment/<int:project_id>', methods=['POST'])
 @login_required
 def add_equipment(project_id):
@@ -290,7 +311,7 @@ def add_equipment(project_id):
         db.session.commit()
 
     # Frontend sends equipment type as the template's type_key
-    template = EquipmentTemplate.query.filter_by(type_key=data['type'], project_id=project_id).first_or_404()
+    template = EquipmentTemplate.query.filter_by(type_key=data['type']).first_or_404()
     
     new_equip = ScheduledEquipment(
         instance_name=data['instanceName'],
@@ -324,7 +345,7 @@ def update_equipment(project_id, id):
         db.session.commit()
 
     # Frontend sends equipment type as the template's type_key
-    template = EquipmentTemplate.query.filter_by(type_key=data['type'], project_id=project_id).first_or_404()
+    template = EquipmentTemplate.query.filter_by(type_key=data['type']).first_or_404()
 
     equip.instance_name = data['instanceName']
     equip.quantity = data.get('quantity', 1)
@@ -406,11 +427,11 @@ def add_equipment_template(project_id):
     if not all(k in data for k in ['typeKey', 'name', 'points']):
         return jsonify({"error": "Missing data"}), 400
     
-    existing = EquipmentTemplate.query.filter_by(type_key=data['typeKey'], project_id=project_id).first()
+    existing = EquipmentTemplate.query.filter_by(type_key=data['typeKey']).first()
     if existing:
         return jsonify({"error": f"Equipment type key '{data['typeKey']}' already exists."}), 409
 
-    new_template = EquipmentTemplate(type_key=data['typeKey'], name=data['name'], project_id=project_id)
+    new_template = EquipmentTemplate(type_key=data['typeKey'], name=data['name'], project_id=project_id)  # project_id retained for ownership metadata only
     for point_data in data['points']:
         point = PointTemplate.query.get(point_data['id'])
         if point:
@@ -429,11 +450,12 @@ def update_equipment_template(project_id, key):
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
     data = request.get_json()
-    template = EquipmentTemplate.query.filter_by(type_key=key, project_id=project_id).first_or_404()
+    template = EquipmentTemplate.query.filter_by(type_key=key).first_or_404()
 
     new_key = data['typeKey']
+    # Only enforce uniqueness check if the key is actually changing
     if template.type_key != new_key:
-        existing = EquipmentTemplate.query.filter_by(type_key=new_key, project_id=project_id).first()
+        existing = EquipmentTemplate.query.filter_by(type_key=new_key).first()
         if existing:
             return jsonify({"error": f"Equipment type key '{new_key}' already exists."}), 409
 
@@ -457,11 +479,12 @@ def replicate_equipment_template(project_id, id):
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
     original = EquipmentTemplate.query.get_or_404(id)
+    # Replication allowed across projects (global templates)
     
     i = 1
     while True:
         new_key = f"{original.type_key}_copy{i}"
-        if not EquipmentTemplate.query.filter_by(type_key=new_key, project_id=project_id).first():
+        if not EquipmentTemplate.query.filter_by(type_key=new_key).first():
             break
         i += 1
     new_name = f"{original.name} (Copy {i})"
@@ -478,20 +501,20 @@ def replicate_equipment_template(project_id, id):
 @app.route('/api/parts/<int:project_id>', methods=['POST'])
 @login_required
 def add_part(project_id):
+    # Keep project ownership check for authorization gating
     project = Project.query.get_or_404(project_id)
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
     data = request.get_json()
-    if Part.query.filter_by(part_number=data['part_number'], project_id=project_id).first():
-        return jsonify({"error": f"Part number '{data['part_number']}' already exists."}), 409
+    if Part.query.filter_by(part_number=data['part_number']).first():
+        return jsonify({"error": f"Part number '{data['part_number']}' already exists globally."}), 409
     new_part = Part(
         part_number=data['part_number'],
         description=data['description'],
         category=data.get('category'),
         cost=data.get('cost'),
         country_of_origin=data.get('country_of_origin'),
-        cable_recommendation=data.get('cable_recommendation'),
-        project_id=project_id
+        cable_recommendation=data.get('cable_recommendation')
     )
     db.session.add(new_part)
     db.session.commit()
@@ -506,8 +529,8 @@ def update_part(project_id, id):
         return jsonify({"error": "Unauthorized"}), 403
     data = request.get_json()
     part = Part.query.get_or_404(id)
-    if part.part_number != data['part_number'] and Part.query.filter_by(part_number=data['part_number'], project_id=project_id).first():
-        return jsonify({"error": f"Part number '{data['part_number']}' already exists."}), 409
+    if part.part_number != data['part_number'] and Part.query.filter_by(part_number=data['part_number']).first():
+        return jsonify({"error": f"Part number '{data['part_number']}' already exists globally."}), 409
     part.part_number = data['part_number']
     part.description = data['description']
     part.category = data.get('category')
@@ -525,6 +548,8 @@ def delete_part(project_id, id):
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
     part = Part.query.get_or_404(id)
+    if PointTemplate.query.filter_by(part_id=id).first():
+        return jsonify({"error": "Part is referenced by one or more point templates."}), 409
     db.session.delete(part)
     db.session.commit()
     broadcast_update(project_id)
@@ -545,11 +570,51 @@ def on_leave(data):
 def broadcast_update(project_id):
     socketio.emit('update', {'project_id': project_id}, room=project_id)
 
+@app.route('/projects/<int:project_id>', methods=['DELETE'])
+@login_required
+def delete_project(project_id):
+    """Delete an entire project and all related data after strong confirmation."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json() or {}
+    if data.get('confirmName') != project.name or data.get('confirmWord') != 'DELETE':
+        return jsonify({"error": "Confirmation mismatch"}), 400
+
+    # Delete dependent objects explicitly to ensure cleanup
+    # Order: ScheduledEquipment -> Panels / Templates / Points / Parts -> Project
+    ScheduledEquipment.query.filter_by(project_id=project_id).delete(synchronize_session=False)
+
+    # Do NOT delete point/equipment templates; they are global now
+
+    # Parts are global now; do not delete parts when deleting a project
+
+    # Panels (cascade removes ScheduledEquipment already removed above for safety)
+    for panel in Panel.query.filter_by(project_id=project_id).all():
+        db.session.delete(panel)
+
+    db.session.delete(project)
+    db.session.commit()
+    return jsonify({"success": True, "redirect": url_for('project_selection')}), 200
+
 # --- DB INITIALIZATION & RUN ---
 
 def setup_database(app):
     with app.app_context():
         db.create_all()
+        # Deduplicate global parts on first run after migration (keep lowest id)
+        from sqlalchemy import func
+        dups = (db.session.query(Part.part_number, func.count(Part.id))
+                .group_by(Part.part_number).having(func.count(Part.id) > 1).all())
+        for pn, _ in dups:
+            rows = Part.query.filter_by(part_number=pn).order_by(Part.id).all()
+            keeper = rows[0]
+            for obsolete in rows[1:]:
+                # Repoint any point templates
+                PointTemplate.query.filter_by(part_id=obsolete.id).update({PointTemplate.part_id: keeper.id})
+                db.session.delete(obsolete)
+        if dups:
+            db.session.commit()
 
 if __name__ == '__main__':
     setup_database(app)

@@ -444,6 +444,8 @@
     </style>
 </head>
 <body>
+<!-- Back to Projects -->
+<a href="/projects" style="position:fixed; top:10px; left:10px; background:#444; color:#fff; padding:6px 10px; text-decoration:none; border-radius:4px; z-index:1000;">← Projects</a>
 
     <div class="app-layout">
         <aside class="sidebar">
@@ -628,18 +630,27 @@
         </div>
     </div>
 
+    <div id="delete-panel-modal" class="modal-overlay" style="display:none;">
+      <div class="modal">
+        <h3>Delete Panel</h3>
+        <p id="delete-panel-warning" style="color:#600; font-size:0.9rem;"></p>
+        <p>Type the panel name to confirm:</p>
+        <input type="text" id="delete-panel-confirm" />
+        <p style="margin-top:10px;">Additionally type DELETE below:</p>
+        <input type="text" id="delete-panel-confirm-word" placeholder="DELETE" />
+        <div class="modal-footer">
+          <button type="button" id="cancel-delete-panel">Cancel</button>
+          <button type="button" id="confirm-delete-panel" class="btn btn-danger">Delete Permanently</button>
+        </div>
+      </div>
+    </div>
+
 <script>
     const projectId = {{ project_id }};
     const socket = io();
 
     socket.on('connect', () => {
         socket.emit('join', { project_id: projectId });
-    });
-
-    socket.on('update', (data) => {
-        if (data.project_id === projectId) {
-            loadInitialData();
-        }
     });
 
     // --- GLOBAL STATE & DOM REFS ---
@@ -695,6 +706,9 @@
         editingPartIdInput = document.getElementById("editing-part-id"),
         newPartBtn = document.getElementById("new-part-btn"),
         deletePartBtn = document.getElementById("delete-part-btn");
+
+    let sidebarRenderToken = 0;
+    let ignoreNextSocketUpdate = false;
 
     // --- API & DATA ---
 
@@ -765,6 +779,28 @@
         addPanelModal.style.display = "none";
     }
 
+    // Add Panel form submission (optimistic update)
+    addPanelForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const panelName = document.getElementById('new-panel-name').value.trim();
+        const floor = document.getElementById('new-panel-floor').value.trim();
+        if(!panelName || !floor) return;
+        try {
+            const created = await apiCall(`/api/panel/${projectId}`, 'POST', { panelName, floor });
+            // Optimistically update state
+            appData.panels.push(created);
+            renderSidebar();
+            // Auto-select new panel
+            selectPanel(created.panelName, created.floor);
+            // Clear and close modal
+            document.getElementById('new-panel-name').value='';
+            document.getElementById('new-panel-floor').value='';
+            addPanelModal.style.display='none';
+        } catch(err) {
+            alert(err.error || 'Failed to add panel');
+        }
+    });
+
     // --- PART LIBRARY LOGIC ---
     function renderPartsModal() {
         partsTableBody.innerHTML = "";
@@ -821,8 +857,23 @@
 
         const method = id ? "PUT" : "POST";
         const url = id ? `/api/parts/${projectId}/${id}` : `/api/parts/${projectId}`;
-        
-        await apiCall(url, method, data);
+        const saved = await apiCall(url, method, data);
+        // Optimistically merge into appData.parts
+        appData.parts[saved.id] = saved;
+        populatePartSelector();
+        // If editing, keep context; if new, reset form and highlight
+        if (!id) {
+            resetPartForm();
+            loadPartForEdit(saved.id);
+        } else {
+            loadPartForEdit(saved.id);
+        }
+        // Update any open points modal selectors referencing parts
+        if (document.getElementById('point-part-number')) {
+            const currentVal = pointForm['point-part-number'].value;
+            populatePartSelector();
+            pointForm['point-part-number'].value = currentVal || '';
+        }
     }
 
     async function handleDeletePart() {
@@ -931,10 +982,20 @@
         const method = id ? "PUT" : "POST",
             url = id ? `/api/points/${projectId}/${id}` : `/api/points/${projectId}`;
         const newPoint = await apiCall(url, method, data);
+        // Integrate into appData without reloading all data
+        appData.pointTemplates[newPoint.id] = newPoint;
+        renderPointsModal();
         if (id) {
             loadPointForEdit(id);
         } else if (newPoint) {
             loadPointForEdit(newPoint.id);
+        }
+        // If editing equipment referencing points, refresh checkbox labels
+        if (editingIdInput.value) {
+            const currentType = form["equipment-type"].value;
+            const selectedBefore = Array.from(checkboxContainer.querySelectorAll('input[type=checkbox]:checked')).map(cb=>parseInt(cb.value));
+            renderCheckboxes(currentType);
+            selectedBefore.forEach(pid=>{ const cb=document.getElementById(`point-${pid}`); if(cb) cb.checked=true; });
         }
     }
     async function handleDeletePoint() {
@@ -995,8 +1056,11 @@
                 await apiCall(`/api/equipment_templates/${projectId}/${template.type_key}/replicate`, "POST");
                 // After replication, reload the equipment templates
                 const updatedData = await apiCall(`/api/data/${projectId}`);
+                const prevSelected = form["equipment-type"].value;
                 appData.equipmentTemplates = updatedData.equipmentTemplates;
                 renderEquipmentLibraryModal();
+                populateEquipmentTypes();
+                if (prevSelected) form["equipment-type"].value = prevSelected;
             };
             templateList.appendChild(li)
         });
@@ -1066,26 +1130,48 @@
         };
         const url = editingKey ? `/api/equipment_templates/${projectId}/${editingKey}` : `/api/equipment_templates/${projectId}`,
             method = editingKey ? "PUT" : "POST";
-        
+        const oldKey = editingKey || data.typeKey;
         await apiCall(url, method, data);
-        
-        // Only update the equipment templates, not all data
         const updatedData = await apiCall(`/api/data/${projectId}`);
         appData.equipmentTemplates = updatedData.equipmentTemplates;
-        
-        // Re-render the equipment library modal
-        renderEquipmentLibraryModal();
-        
-        // Load the template for editing (using the new key if it changed)
+        // Refresh dropdown immediately, preserving current selection
+        const currentSelected = form["equipment-type"].value;
+        populateEquipmentTypes();
+        // If current selection was the edited template and its key changed, switch to new key
         const newKey = data.typeKey;
+        if (currentSelected === oldKey && oldKey !== newKey) {
+            form["equipment-type"].value = newKey;
+        } else if (currentSelected) {
+            form["equipment-type"].value = currentSelected;
+        }
+        // Re-render library and reload edited template
+        renderEquipmentLibraryModal();
         loadTemplateForEdit(newKey);
+        // If user is editing equipment that uses this template, re-render its checkboxes
+        const currentEditingId = parseInt(editingIdInput.value);
+        if (currentEditingId) {
+            const editingEquip = appData.scheduledEquipment.find(e => e.id === currentEditingId);
+            if (editingEquip && (editingEquip.type === oldKey || editingEquip.type === newKey)) {
+                const selectedPointsSnapshot = Array.from(checkboxContainer.querySelectorAll('input[type=checkbox]:checked')).map(cb=>parseInt(cb.value));
+                checkboxContainer.innerHTML="";
+                renderCheckboxes(newKey);
+                selectedPointsSnapshot.forEach(pid=>{ const cb=document.getElementById(`point-${pid}`); if(cb) cb.checked=true; });
+            }
+        }
     }
 
     // --- MAIN APP LOGIC ---
     async function renderSidebar() {
+        const myToken = ++sidebarRenderToken;
+        // Take a snapshot so async updates don't mutate while we iterate
+        const panelsSnapshot = [...appData.panels];
+        const equipmentSnapshot = [...appData.scheduledEquipment];
+        // Pre-fetch all point summaries concurrently
+        const summaries = await Promise.all(panelsSnapshot.map(p => apiCall(`/api/panel/${p.id}/point_summary`).catch(()=>({}))));
+        if (myToken !== sidebarRenderToken) return; // abort stale render
         panelList.innerHTML = "";
-        for (const panel of appData.panels) {
-            const equipmentInPanel = appData.scheduledEquipment.filter(item => item.panelName === panel.panelName);
+        panelsSnapshot.forEach((panel, idx) => {
+            const equipmentInPanel = equipmentSnapshot.filter(item => item.panelName === panel.panelName);
             const details = document.createElement("details");
             details.open = true;
             const summary = document.createElement("summary");
@@ -1093,13 +1179,11 @@
             summary.dataset.panelName = panel.panelName;
             summary.onclick = () => selectPanel(panel.panelName, panel.floor);
             details.appendChild(summary);
-
-            const pointSummary = await apiCall(`/api/panel/${panel.id}/point_summary`);
+            const pointSummary = summaries[idx] || {};
             const summaryDiv = document.createElement('div');
             summaryDiv.className = 'point-summary';
             summaryDiv.innerHTML = Object.entries(pointSummary).map(([key, value]) => `<span>${key}: ${value}</span>`).join('');
             details.appendChild(summaryDiv);
-
             const sublist = document.createElement("ul");
             sublist.className = "equipment-sublist";
             equipmentInPanel.forEach(item => {
@@ -1107,16 +1191,13 @@
                 const link = document.createElement("a");
                 link.textContent = `${item.instanceName} (x${item.quantity})`;
                 link.dataset.id = item.id;
-                link.onclick = e => {
-                    e.stopPropagation();
-                    loadEquipmentForEdit(item.id)
-                };
+                link.onclick = e => { e.stopPropagation(); loadEquipmentForEdit(item.id); };
                 listItem.appendChild(link);
-                sublist.appendChild(listItem)
+                sublist.appendChild(listItem);
             });
             details.appendChild(sublist);
-            panelList.appendChild(details)
-        }
+            panelList.appendChild(details);
+        });
     }
 
     function populateEquipmentTypes() {
@@ -1222,17 +1303,19 @@
         event.preventDefault();
         const editingId = parseInt(editingIdInput.value);
         const selectedPoints = Array.from(checkboxContainer.querySelectorAll("input:checked")).map(cb => parseInt(cb.value));
-        const data = {
-            panelName: panelNameInput.value,
-            floor: floorNameInput.value,
-            instanceName: form["instance-name"].value,
-            quantity: parseInt(quantityInput.value),
-            type: form["equipment-type"].value,
-            selectedPoints: selectedPoints
-        };
-        const url = editingId ? `/api/equipment/${projectId}/${editingId}` : `/api/equipment/${projectId}`,
-            method = editingId ? "PUT" : "POST";
+        const data = { panelName: panelNameInput.value, floor: floorNameInput.value, instanceName: form["instance-name"].value, quantity: parseInt(quantityInput.value), type: form["equipment-type"].value, selectedPoints };
+        const url = editingId ? `/api/equipment/${projectId}/${editingId}` : `/api/equipment/${projectId}`;
+        const method = editingId ? "PUT" : "POST";
         await apiCall(url, method, data);
+        ignoreNextSocketUpdate = true;
+        const updatedData = await apiCall(`/api/data/${projectId}`);
+        appData.scheduledEquipment = updatedData.scheduledEquipment;
+        appData.panels = updatedData.panels;
+        renderSidebar();
+        if (editingId) {
+            const updatedItem = appData.scheduledEquipment.find(e => e.id === editingId);
+            if (updatedItem) setTimeout(()=>loadEquipmentForEdit(editingId), 50);
+        } else { resetForm(); }
     }
 
     function handleSearch() {
@@ -1283,6 +1366,53 @@
     partsSearch.addEventListener("input", handlePartsSearch);
     mainHeader.addEventListener("click", resetForm);
     equipmentTypeSelect.addEventListener("change", e => renderCheckboxes(e.target.value));
+
+    // Panel delete logic additions
+    let panelDeleteModal = document.getElementById('delete-panel-modal');
+    let panelDeleteWarning = document.getElementById('delete-panel-warning');
+    let panelDeleteConfirmInput = document.getElementById('delete-panel-confirm');
+    let panelDeleteConfirmWordInput = document.getElementById('delete-panel-confirm-word');
+    let deletePanelId = null; let deletePanelName = null;
+
+    function showDeletePanel(panel){
+      deletePanelId = panel.id; deletePanelName = panel.panelName;
+      panelDeleteWarning.textContent = `This will remove panel "${panel.panelName}" and all its scheduled equipment. This cannot be undone.`;
+      panelDeleteConfirmInput.value='';
+      panelDeleteConfirmWordInput.value='';
+      panelDeleteModal.style.display='flex';
+    }
+
+    document.getElementById('cancel-delete-panel').onclick = ()=>{ panelDeleteModal.style.display='none'; };
+
+    document.getElementById('confirm-delete-panel').onclick = async ()=>{
+      if(panelDeleteConfirmInput.value !== deletePanelName){ alert('Panel name mismatch'); return; }
+      if(panelDeleteConfirmWordInput.value !== 'DELETE'){ alert('Please type DELETE to confirm.'); return; }
+      const resp = await fetch(`/api/panel/${projectId}/${deletePanelId}`, { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({confirmName: deletePanelName, confirmWord: panelDeleteConfirmWordInput.value})});
+      if(resp.ok){ panelDeleteModal.style.display='none'; const updated = await apiCall(`/api/data/${projectId}`); appData.panels = updated.panels; appData.scheduledEquipment = updated.scheduledEquipment; renderSidebar(); resetForm(); }
+      else { const data = await resp.json().catch(()=>({error:'Delete failed'})); alert(data.error || 'Delete failed'); }
+    };
+
+    // Inject delete buttons into sidebar after render
+    const originalRenderSidebar = renderSidebar;
+    renderSidebar = async function(){
+      await originalRenderSidebar();
+      // Add delete controls to panel summaries
+      document.querySelectorAll('#panel-list details').forEach(details => {
+        const summary = details.querySelector('summary');
+        if(summary && !summary.querySelector('.panel-del')){
+          const panelName = summary.dataset.panelName; const panel = appData.panels.find(p=>p.panelName===panelName);
+          if(panel){
+            const btn = document.createElement('button');
+            btn.textContent='✖';
+            btn.title='Delete Panel';
+            btn.className='panel-del';
+            btn.style.marginLeft='8px'; btn.style.background='transparent'; btn.style.border='none'; btn.style.cursor='pointer'; btn.style.color='#b00';
+            btn.onclick = (e)=>{ e.stopPropagation(); showDeletePanel(panel); };
+            summary.appendChild(btn);
+          }
+        }
+      });
+    };
 </script>
 </body>
 </html>

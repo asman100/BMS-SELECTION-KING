@@ -19,7 +19,10 @@
         <h2>Your Projects</h2>
         <ul class="project-list">
             {% for project in projects %}
-                <li><a href="{{ url_for('index', project_id=project.id) }}">{{ project.name }}</a></li>
+                <li>
+                    <a href="{{ url_for('index', project_id=project.id) }}">{{ project.name }}</a>
+                    <button data-project-id="{{ project.id }}" data-project-name="{{ project.name }}" class="delete-project-btn" style="margin-left:10px;color:#b00;">Delete</button>
+                </li>
             {% endfor %}
         </ul>
 
@@ -34,9 +37,59 @@
             </form>
         </div>
         <p><a href="{{ url_for('logout') }}">Logout</a></p>
+        <!-- Delete Project Modal -->
+        <div id="delete-project-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+            <div style="background:#fff; padding:20px; width:400px; border-radius:6px;">
+                <h3>Delete Project</h3>
+                <p id="delete-project-warning" style="font-size:0.9rem; line-height:1.4; color:#600;"></p>
+                <p>Type the project name to confirm:</p>
+                <input type="text" id="delete-project-confirm" style="width:100%;" />
+                <p style="margin-top:10px;">Additionally type DELETE below:</p>
+                <input type="text" id="delete-project-confirm-word" style="width:100%;" placeholder="DELETE" />
+                <div style="margin-top:15px; display:flex; justify-content:space-between;">
+                    <button id="cancel-delete-project">Cancel</button>
+                    <button id="confirm-delete-project" style="background:#b00; color:#fff;">Delete Permanently</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        const deleteModal = document.getElementById('delete-project-modal');
+        const deleteWarning = document.getElementById('delete-project-warning');
+        const deleteConfirmInput = document.getElementById('delete-project-confirm');
+        const deleteConfirmWordInput = document.getElementById('delete-project-confirm-word');
+        let deleteTargetId = null;
+        let deleteTargetName = null;
+
+        document.querySelectorAll('.delete-project-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                deleteTargetId = btn.dataset.projectId;
+                deleteTargetName = btn.dataset.projectName;
+                deleteWarning.textContent = `This will permanently remove project "${deleteTargetName}" and ALL its panels, equipment, points, parts and templates. This cannot be undone.`;
+                deleteConfirmInput.value = '';
+                deleteConfirmWordInput.value = '';
+                deleteModal.style.display = 'flex';
+            });
+        });
+
+        document.getElementById('cancel-delete-project').addEventListener('click', () => {
+            deleteModal.style.display = 'none';
+        });
+
+        document.getElementById('confirm-delete-project').addEventListener('click', async () => {
+            if (deleteConfirmInput.value !== deleteTargetName || deleteConfirmWordInput.value !== 'DELETE') {
+                alert('Confirmation fields do not match.');
+                return;
+            }
+            const resp = await fetch(`/projects/${deleteTargetId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmName: deleteTargetName, confirmWord: deleteConfirmWordInput.value }) });
+            if (resp.ok) {
+                window.location.reload();
+            } else {
+                const data = await resp.json().catch(()=>({error:'Delete failed'}));
+                alert(data.error || 'Delete failed');
+            }
+        });
         document.getElementById("new-project-form").addEventListener("submit", async (event) => {
             event.preventDefault();
             const name = document.getElementById("project-name").value;
