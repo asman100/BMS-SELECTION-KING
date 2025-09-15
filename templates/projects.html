@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects - BMS Tool</title>
+    <style>
+        /* Add some basic styling */
+        body { font-family: sans-serif; }
+        .container { width: 500px; margin: 0 auto; padding-top: 100px; }
+        .project-list { list-style: none; padding: 0; }
+        .project-list li { margin-bottom: 10px; }
+        .project-list a { text-decoration: none; color: #007bff; }
+        .new-project-form { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Your Projects</h2>
+        <ul class="project-list">
+            {% for project in projects %}
+                <li><a href="{{ url_for('index', project_id=project.id) }}">{{ project.name }}</a></li>
+            {% endfor %}
+        </ul>
+
+        <div class="new-project-form">
+            <h3>Create New Project</h3>
+            <form id="new-project-form">
+                <div class="form-group">
+                    <label for="project-name">Project Name</label>
+                    <input type="text" id="project-name" required>
+                </div>
+                <button type="submit" class="btn">Create</button>
+            </form>
+        </div>
+        <p><a href="{{ url_for('logout') }}">Logout</a></p>
+    </div>
+
+    <script>
+        document.getElementById("new-project-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const name = document.getElementById("project-name").value;
+
+            const response = await fetch("{{ url_for('create_project') }}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ name })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                window.location.href = data.redirect;
+            } else {
+                alert(data.error);
+            }
+        });
+    </script>
+</body>
+</html>

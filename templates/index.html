@@ -4,16 +4,443 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced BMS Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.2/socket.io.js"></script>
     <style>
-        /* Main CSS is identical */
-        :root{--primary-bg:#f4f7fa;--sidebar-bg:#1a3b5d;--sidebar-item-bg:#2a4b6d;--sidebar-item-hover-bg:#3a5b7d;--sidebar-text:#fff;--sidebar-link-text:#aed9ff;--main-header-text:#1a3b5d;--section-header-text:#005a9e;--border-color:#e0e6ed;--white:#fff;--btn-primary-bg:#007bff;--btn-update-bg:#28a745;--btn-secondary-bg:#4a6a8a;--btn-danger-bg:#dc3545}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:var(--primary-bg);color:#333;margin:0;height:100vh;overflow:hidden}.app-layout{display:flex;height:100%}.sidebar{width:280px;background-color:var(--sidebar-bg);color:var(--sidebar-text);padding:20px;display:flex;flex-direction:column;box-shadow:2px 0 5px rgba(0,0,0,.1);flex-shrink:0}.sidebar h2{margin:0 0 10px 0;font-size:20px;text-align:center}.search-bar{width:100%;padding:10px;border-radius:5px;border:1px solid #4a6a8a;background-color:var(--sidebar-item-bg);color:var(--sidebar-text);box-sizing:border-box;margin-bottom:20px}.panel-list{list-style:none;padding:0;margin:0;overflow-y:auto;flex-grow:1}.panel-list details{margin-bottom:5px}.panel-list summary{cursor:pointer;padding:10px;background-color:var(--sidebar-item-bg);border-radius:5px;font-weight:700;list-style:none;transition:background-color .2s}.panel-list summary::-webkit-details-marker{display:none}.panel-list summary:hover{background-color:var(--sidebar-item-hover-bg)}.panel-list summary.active{background-color:var(--btn-primary-bg)}.equipment-sublist{list-style:none;padding:10px 0 5px 20px}.equipment-sublist li a{color:var(--sidebar-link-text);text-decoration:none;display:block;padding:5px;border-radius:3px;cursor:pointer}.equipment-sublist li a:hover,.equipment-sublist li a.active{background-color:#4a6a8a;color:var(--sidebar-text)}.sidebar-footer{margin-top:auto;padding-top:15px;border-top:1px solid #4a6a8a}.btn{padding:12px 20px;font-size:16px;font-weight:700;text-align:center;border-radius:5px;border:none;cursor:pointer;transition:all .2s}.btn:hover{filter:brightness(90%)}.btn-secondary{background-color:var(--btn-secondary-bg);color:#fff;width:100%}.main-content{flex-grow:1;padding:30px;overflow-y:auto;display:flex;flex-direction:column}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border-color);padding-bottom:15px;margin-bottom:25px;flex-shrink:0}.header h1{margin:0;font-size:24px;color:var(--main-header-text)}.stage{background-color:var(--white);border:1px solid var(--border-color);border-radius:6px;padding:20px}.stage h3{font-size:18px;color:var(--section-header-text);margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px}.form-group{margin-bottom:15px}label{display:block;font-weight:600;margin-bottom:5px;color:#555}input[type=text],input[type=number],select{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-size:16px}input[readonly]{background-color:#e9ecef;cursor:not-allowed}#submit-button-container{margin-top:10px}.btn-primary{background-color:var(--btn-primary-bg);color:#fff;width:100%}.btn-update{background-color:var(--btn-update-bg);color:#fff;width:100%}.btn-danger{background-color:var(--btn-danger-bg);color:#fff}.btn-link{background:0 0;border:none;color:#007bff;cursor:pointer;text-decoration:underline;padding:0;font-size:14px}#point-configuration{display:none}.checkbox-group{display:flex;flex-direction:column;gap:10px}.checkbox-group fieldset{border:1px solid #ddd;border-radius:4px;padding:15px}.checkbox-group legend{font-weight:600;color:#333;padding:0 5px}.checkbox-item{display:flex;align-items:center}.checkbox-item input{margin-right:10px;width:18px;height:18px}
+        :root {
+            --primary-bg: #f4f7fa;
+            --sidebar-bg: #1a3b5d;
+            --sidebar-item-bg: #2a4b6d;
+            --sidebar-item-hover-bg: #3a5b7d;
+            --sidebar-text: #fff;
+            --sidebar-link-text: #aed9ff;
+            --main-header-text: #1a3b5d;
+            --section-header-text: #005a9e;
+            --border-color: #e0e6ed;
+            --white: #fff;
+            --btn-primary-bg: #007bff;
+            --btn-update-bg: #28a745;
+            --btn-secondary-bg: #4a6a8a;
+            --btn-danger-bg: #dc3545;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--primary-bg);
+            color: #333;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-layout {
+            display: flex;
+            height: 100%;
+        }
+
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
+        }
+
+        .sidebar h2 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+            text-align: center;
+        }
+
+        .search-bar {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #4a6a8a;
+            background-color: var(--sidebar-item-bg);
+            color: var(--sidebar-text);
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        .panel-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .panel-list details {
+            margin-bottom: 5px;
+        }
+
+        .panel-list summary {
+            cursor: pointer;
+            padding: 10px;
+            background-color: var(--sidebar-item-bg);
+            border-radius: 5px;
+            font-weight: bold;
+            list-style: none; /* Hide the default marker */
+            transition: background-color 0.2s;
+        }
+        .panel-list summary::-webkit-details-marker { display: none; }
+
+        .panel-list summary:hover {
+            background-color: var(--sidebar-item-hover-bg);
+        }
+        .panel-list summary.active {
+            background-color: var(--btn-primary-bg);
+        }
+
+        .equipment-sublist {
+            list-style: none;
+            padding: 10px 0 5px 20px;
+        }
+
+        .equipment-sublist li a {
+            color: var(--sidebar-link-text);
+            text-decoration: none;
+            display: block;
+            padding: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .equipment-sublist li a:hover, .equipment-sublist li a.active {
+            background-color: #4a6a8a;
+            color: var(--sidebar-text);
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid #4a6a8a;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            background-color: var(--btn-primary-bg);
+            color: var(--white);
+        }
+        .btn-primary:hover { background-color: #0069d9; }
+
+        .btn-update {
+            background-color: var(--btn-update-bg);
+            color: var(--white);
+        }
+        .btn-update:hover { background-color: #218838; }
+
+        .btn-secondary {
+            background-color: var(--btn-secondary-bg);
+            color: var(--white);
+        }
+        .btn-secondary:hover { background-color: #3a5a7a; }
+
+        .btn-danger {
+            background-color: var(--btn-danger-bg);
+            color: var(--white);
+        }
+        .btn-danger:hover { background-color: #c82333; }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--btn-primary-bg);
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--main-header-text);
+            cursor: pointer;
+        }
+
+        .stage {
+            background-color: var(--white);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #form-title {
+            margin-top: 0;
+            color: var(--section-header-text);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            background-color: var(--primary-bg);
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+        }
+
+        #point-configuration {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #point-configuration h4 {
+            margin-bottom: 10px;
+        }
+
+        #submit-button-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .point-summary {
+            font-size: 12px;
+            color: #aed9ff;
+            padding: 5px 10px;
+            background: #2a4b6d;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        .point-summary span {
+            margin-right: 10px;
+        }
+
         /* --- Modal CSS --- */
-        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:center}.modal-content{background-color:var(--primary-bg);padding:25px;border-radius:8px;width:90%;max-width:800px;box-shadow:0 5px 15px rgba(0,0,0,.3);position:relative}.modal-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border-color);padding-bottom:15px;margin-bottom:20px}.modal-header h2{margin:0;color:var(--main-header-text)}.modal-close-btn{font-size:24px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#888}.modal-body{display:flex;gap:20px;max-height:60vh;overflow-y:auto}.modal-list-pane{flex:1}.modal-form-pane{flex:2}#template-list li,#points-list li{list-style:none;padding:10px;background-color:var(--white);border:1px solid var(--border-color);border-radius:4px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}#template-list li:hover,#points-list li:hover{background-color:#e9ecef}#template-list li.active,#points-list li.active{background-color:var(--btn-primary-bg);color:#fff;font-weight:700}.list-item-controls button{background:0 0;border:none;cursor:pointer;font-size:14px;margin-left:8px;visibility:hidden}.list-item-controls button:hover{transform:scale(1.2)}#template-list li:hover .list-item-controls,#points-list li:hover .list-item-controls{visibility:visible}#master-point-list{max-height:300px;overflow-y:auto;background-color:var(--white);border:1px solid var(--border-color);padding:15px;border-radius:4px}
-        .point-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; }
-        .point-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--primary-bg);
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--main-header-text);
+        }
+
+        .modal-close-btn {
+            font-size: 24px;
+            font-weight: bold;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .modal-body {
+            display: flex;
+            gap: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-list-pane {
+            flex: 1;
+        }
+
+        .modal-form-pane {
+            flex: 2;
+        }
+
+        #template-list li,
+        #points-list li {
+            list-style: none;
+            padding: 10px;
+            background-color: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #template-list li:hover,
+        #points-list li:hover {
+            background-color: #e9ecef;
+        }
+
+        #template-list li.active,
+        #points-list li.active {
+            background-color: var(--btn-primary-bg);
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .list-item-controls button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 8px;
+            visibility: hidden;
+        }
+        .list-item-controls button:hover { transform: scale(1.2); }
+
+        #template-list li:hover .list-item-controls,
+        #points-list li:hover .list-item-controls {
+            visibility: visible;
+        }
+
+        #master-point-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: var(--white);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .point-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .point-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
         .point-list li:last-child { border-bottom: none; }
-        .point-list button { font-size: 18px; cursor: pointer; background: none; border: none; }
-        #available-points-search { width: 100%; margin-bottom: 10px; }.modal-footer{margin-top:20px;display:flex;justify-content:space-between;align-items:center}.form-row{display:flex;gap:15px}.form-row .form-group{flex:1}
+
+        .point-list button {
+            font-size: 18px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        #available-points-search {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        #parts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #parts-table th, #parts-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+        }
+        #parts-table th {
+            background-color: var(--sidebar-item-bg);
+            color: var(--sidebar-text);
+        }
+        #parts-table tbody tr:nth-child(even) { background-color: #e9ecef; }
+        #parts-table tbody tr:hover { background-color: #d9e2ef; cursor: pointer; }
+
     </style>
 </head>
 <body>
@@ -25,12 +452,16 @@
             <ul id="panel-list" class="panel-list"></ul>
             <div class="sidebar-footer">
                 <button id="add-panel-btn" class="btn btn-secondary">+ Add New Panel</button>
+                <a href="{{ url_for('logout') }}" class="btn btn-danger" style="margin-top: 10px;">Logout</a>
             </div>
         </aside>
         <main class="main-content">
             <div class="header">
                 <h1 id="main-header">Workspace</h1>
-                <button id="manage-library-btn" class="btn-link">⚙️ Manage Equipment & Point Libraries</button>
+                <div>
+                    <button id="manage-library-btn" class="btn-link">⚙️ Manage Equipment & Point Libraries</button>
+                    <button id="manage-parts-btn" class="btn-link">🔩 Manage Parts</button>
+                </div>
             </div>
             <div class="stage">
                 <h3 id="form-title">Add New Equipment</h3>
@@ -115,6 +546,13 @@
                             <input type="text" id="point-name" required>
                         </div>
                         <div class="form-group">
+                            <label for="point-part-number">Part Number</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="point-part-number" style="flex-grow: 1;"><option value="">None</option></select>
+                                <button type="button" id="edit-part-btn" class="btn btn-secondary">Edit</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label for="point-quantity">Quantity</label>
                             <input type="number" id="point-quantity" value="1" min="1" required>
                         </div>
@@ -129,13 +567,88 @@
         </div>
     </div>
 
+    <div id="parts-library-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-header"><h2>Manage Parts Library</h2><button class="modal-close-btn">&times;</button></div>
+            <div class="modal-body">
+                <div class="modal-list-pane">
+                    <input type="text" id="parts-search" class="search-bar" placeholder="Search parts..." style="color: var(--sidebar-text); background-color: var(--sidebar-item-bg);">
+                    <table id="parts-table">
+                        <thead>
+                            <tr>
+                                <th>Part Number</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <button id="new-part-btn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">+ New Part</button>
+                </div>
+                <div class="modal-form-pane">
+                    <form id="part-form">
+                        <input type="hidden" id="editing-part-id">
+                        <h4 id="part-form-title">Add New Part</h4>
+                        <div class="form-group">
+                            <label for="part-number">Part Number</label>
+                            <input type="text" id="part-number" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="part-description">Description</label>
+                            <input type="text" id="part-description" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="part-category">Category</label>
+                                <input type="text" id="part-category">
+                            </div>
+                            <div class="form-group">
+                                <label for="part-cost">Cost</label>
+                                <input type="number" id="part-cost" min="0" step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="part-country">Country of Origin</label>
+                                <input type="text" id="part-country">
+                            </div>
+                            <div class="form-group">
+                                <label for="part-cable">Cable Recommendation</label>
+                                <input type="text" id="part-cable">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" id="delete-part-btn" class="btn btn-danger" style="visibility: hidden;">Delete</button>
+                            <button type="submit" class="btn btn-primary">Save Part</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
+    const projectId = {{ project_id }};
+    const socket = io();
+
+    socket.on('connect', () => {
+        socket.emit('join', { project_id: projectId });
+    });
+
+    socket.on('update', (data) => {
+        if (data.project_id === projectId) {
+            loadInitialData();
+        }
+    });
+
     // --- GLOBAL STATE & DOM REFS ---
     let appData = {
         panels: [],
         scheduledEquipment: [],
         pointTemplates: {},
-        equipmentTemplates: {}
+        equipmentTemplates: {},
+        parts: {}
     };
     const panelList = document.getElementById("panel-list"),
         searchBar = document.getElementById("search-bar"),
@@ -167,11 +680,21 @@
         pointForm = document.getElementById("point-form"),
         pointFormTitle = document.getElementById("point-form-title"),
         editingPointIdInput = document.getElementById("editing-point-id"),
-        deletePointBtn = document.getElementById("delete-point-btn");
+        deletePointBtn = document.getElementById("delete-point-btn"),
+        editPartBtn = document.getElementById("edit-part-btn");
     const assignedPointsList = document.getElementById('assigned-points-list'),
         availablePointsList = document.getElementById('available-points-list'),
         availablePointsSearch = document.getElementById('available-points-search');
     const subPointsContainer = document.getElementById('sub-points-container');
+    const managePartsBtn = document.getElementById("manage-parts-btn"),
+        partsLibraryModal = document.getElementById("parts-library-modal"),
+        partsSearch = document.getElementById("parts-search"),
+        partsTableBody = document.querySelector("#parts-table tbody"),
+        partForm = document.getElementById("part-form"),
+        partFormTitle = document.getElementById("part-form-title"),
+        editingPartIdInput = document.getElementById("editing-part-id"),
+        newPartBtn = document.getElementById("new-part-btn"),
+        deletePartBtn = document.getElementById("delete-part-btn");
 
     // --- API & DATA ---
 
@@ -205,16 +728,18 @@
         }
     }
     async function loadInitialData() {
-        appData = await apiCall("/api/data");
+        appData = await apiCall(`/api/data/${projectId}`);
         renderSidebar();
         populateEquipmentTypes();
-        resetForm()
+        populatePartSelector();
+        resetForm();
+        renderPartsModal();
     }
 
     // --- MODAL GENERIC HANDLERS ---
     function setupModal(modal, openBtn, closeSelector, onOpen = null) {
         const closeBtns = modal.querySelectorAll(closeSelector);
-        openBtn.addEventListener("click", () => {
+        if(openBtn) openBtn.addEventListener("click", () => {
             if (onOpen) {
                 onOpen();
             }
@@ -225,6 +750,7 @@
     setupModal(addPanelModal, addPanelBtn, ".modal-close-btn");
     setupModal(equipmentLibraryModal, manageLibraryBtn, ".modal-close-btn", renderEquipmentLibraryModal);
     setupModal(pointsLibraryModal, managePointsBtn, ".modal-close-btn", renderPointsModal);
+    setupModal(partsLibraryModal, managePartsBtn, ".modal-close-btn", renderPartsModal);
 
     // --- PANEL LOGIC ---
     async function handleAddPanel(event) {
@@ -232,13 +758,96 @@
         const panelName = addPanelForm["new-panel-name"].value,
             floor = addPanelForm["new-panel-floor"].value;
         if (appData.panels.some(p => p.panelName.toLowerCase() === panelName.toLowerCase())) return alert("A panel with this name already exists.");
-        await apiCall("/api/panel", "POST", {
+        await apiCall(`/api/panel/${projectId}`, "POST", {
             panelName,
             floor
         });
         addPanelModal.style.display = "none";
-        await loadInitialData();
-        setTimeout(() => selectPanel(panelName, floor), 0)
+    }
+
+    // --- PART LIBRARY LOGIC ---
+    function renderPartsModal() {
+        partsTableBody.innerHTML = "";
+        Object.values(appData.parts).forEach(part => {
+            const row = partsTableBody.insertRow();
+            row.dataset.id = part.id;
+            row.innerHTML = `
+                <td>${part.part_number}</td>
+                <td>${part.description}</td>
+                <td>${part.category || ''}</td>
+                <td>${part.cost != null ? '$' + part.cost.toFixed(2) : ''}</td>
+            `;
+            row.onclick = () => loadPartForEdit(part.id);
+        });
+        resetPartForm();
+    }
+
+    function resetPartForm() {
+        partForm.reset();
+        editingPartIdInput.value = "";
+        partFormTitle.textContent = "Add New Part";
+        deletePartBtn.style.visibility = "hidden";
+    }
+
+    function loadPartForEdit(id) {
+        const part = appData.parts[id];
+        if (!part) return;
+        
+        document.querySelectorAll("#parts-table tbody tr").forEach(tr => tr.style.backgroundColor = "");
+        document.querySelector(`#parts-table tbody tr[data-id='${id}']`).style.backgroundColor = "var(--sidebar-item-hover-bg)";
+
+        editingPartIdInput.value = id;
+        partForm["part-number"].value = part.part_number;
+        partForm["part-description"].value = part.description;
+        partForm["part-category"].value = part.category || "";
+        partForm["part-cost"].value = part.cost;
+        partForm["part-country"].value = part.country_of_origin || "";
+        partForm["part-cable"].value = part.cable_recommendation || "";
+        partFormTitle.textContent = `Editing: ${part.part_number}`;
+        deletePartBtn.style.visibility = "visible";
+    }
+
+    async function handlePartFormSubmit(event) {
+        event.preventDefault();
+        const id = editingPartIdInput.value;
+        const data = {
+            part_number: partForm["part-number"].value,
+            description: partForm["part-description"].value,
+            category: partForm["part-category"].value,
+            cost: parseFloat(partForm["part-cost"].value) || null,
+            country_of_origin: partForm["part-country"].value,
+            cable_recommendation: partForm["part-cable"].value
+        };
+
+        const method = id ? "PUT" : "POST";
+        const url = id ? `/api/parts/${projectId}/${id}` : `/api/parts/${projectId}`;
+        
+        await apiCall(url, method, data);
+    }
+
+    async function handleDeletePart() {
+        if (!confirm("Are you sure you want to delete this part? This cannot be undone.")) return;
+        const id = editingPartIdInput.value;
+        await apiCall(`/api/parts/${projectId}/${id}`, "DELETE");
+    }
+
+    function handlePartsSearch() {
+        const query = partsSearch.value.toLowerCase();
+        document.querySelectorAll("#parts-table tbody tr").forEach(row => {
+            const isVisible = row.textContent.toLowerCase().includes(query);
+            row.style.display = isVisible ? "" : "none";
+        });
+    }
+
+    function populatePartSelector() {
+        const partSelector = document.getElementById('point-part-number');
+        partSelector.innerHTML = '<option value="">None</option>';
+        Object.values(appData.parts).forEach(part => {
+            const option = document.createElement('option');
+            option.value = part.id;
+            option.textContent = `${part.part_number} - ${part.description}`;
+            partSelector.appendChild(option);
+        });
     }
 
     // --- POINT LIBRARY LOGIC ---
@@ -301,6 +910,7 @@
         editingPointIdInput.value = id;
         pointForm["point-name"].value = point.name;
         pointForm['point-quantity'].value = point.quantity;
+        pointForm['point-part-number'].value = point.part_id || '';
         renderSubPoints(point.sub_points);
         pointFormTitle.textContent = `Editing: ${point.name}`;
         deletePointBtn.style.visibility = "visible"
@@ -315,32 +925,22 @@
         const data = {
             name: pointForm["point-name"].value,
             quantity: parseInt(pointForm['point-quantity'].value),
+            part_id: parseInt(pointForm['point-part-number'].value) || null,
             sub_points: sub_points
         };
         const method = id ? "PUT" : "POST",
-            url = id ? `/api/points/${id}` : "/api/points";
-        await apiCall(url, method, data);
-        await loadInitialData();
-        renderPointsModal();
-        const editingKey = editingTemplateKeyInput.value;
-        if (editingKey) {
-            loadTemplateForEdit(editingKey);
-        } else {
-            resetTemplateForm();
+            url = id ? `/api/points/${projectId}/${id}` : `/api/points/${projectId}`;
+        const newPoint = await apiCall(url, method, data);
+        if (id) {
+            loadPointForEdit(id);
+        } else if (newPoint) {
+            loadPointForEdit(newPoint.id);
         }
     }
     async function handleDeletePoint() {
         if (!confirm("Are you sure you want to delete this point? This cannot be undone.")) return;
         const id = editingPointIdInput.value;
-        await apiCall(`/api/points/${id}`, "DELETE");
-        await loadInitialData();
-        renderPointsModal();
-        const editingKey = editingTemplateKeyInput.value;
-        if (editingKey) {
-            loadTemplateForEdit(editingKey);
-        } else {
-            resetTemplateForm();
-        }
+        await apiCall(`/api/points/${projectId}/${id}`, "DELETE");
     }
 
     // --- EQUIPMENT LIBRARY LOGIC ---
@@ -385,17 +985,14 @@
 
     function renderEquipmentLibraryModal() {
         templateList.innerHTML = "";
-        Object.keys(appData.equipmentTemplates).sort((a, b) => appData.equipmentTemplates[a].name.localeCompare(appData.equipmentTemplates[b].name)).forEach(key => {
-            const template = appData.equipmentTemplates[key];
+        Object.values(appData.equipmentTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(template => {
             const li = document.createElement("li");
             li.innerHTML = `<span>${template.name}</span><span class="list-item-controls"><button title="Replicate">📋</button></span>`;
-            li.dataset.key = key;
-            li.onclick = () => loadTemplateForEdit(key);
+            li.dataset.id = template.id;
+            li.onclick = () => loadTemplateForEdit(template.id);
             li.querySelector("button").onclick = async e => {
                 e.stopPropagation();
-                await apiCall(`/api/equipment_templates/${key}/replicate`, "POST");
-                await loadInitialData();
-                renderEquipmentLibraryModal()
+                await apiCall(`/api/equipment_templates/${projectId}/${template.id}/replicate`, "POST");
             };
             templateList.appendChild(li)
         });
@@ -429,16 +1026,16 @@
         });
     }
 
-    function loadTemplateForEdit(key) {
+    function loadTemplateForEdit(id) {
         resetTemplateForm();
-        const template = appData.equipmentTemplates[key];
+        const template = appData.equipmentTemplates[id];
         if (!template) return;
 
         document.querySelectorAll("#template-list li").forEach(li => li.classList.remove("active"));
-        document.querySelector(`#template-list li[data-key='${key}']`).classList.add("active");
-        editingTemplateKeyInput.value = key;
+        document.querySelector(`#template-list li[data-id='${id}']`).classList.add("active");
+        editingTemplateKeyInput.value = id;
         templateForm["template-name"].value = template.name;
-        templateForm["template-key"].value = key;
+        templateForm["template-key"].value = template.type_key;
         templateFormTitle.textContent = `Editing: ${template.name}`;
         templateForm.querySelector("button").textContent = "Update Template";
 
@@ -453,7 +1050,7 @@
     }
     async function handleTemplateFormSubmit(event) {
         event.preventDefault();
-        const editingKey = editingTemplateKeyInput.value;
+        const editingId = editingTemplateKeyInput.value;
         const points = Array.from(assignedPointsList.querySelectorAll("li")).map(li => ({
             id: parseInt(li.dataset.id),
             quantity: parseInt(li.dataset.quantity)
@@ -463,14 +1060,12 @@
             typeKey: templateForm["template-key"].value,
             points: points
         };
-        const url = editingKey ? `/api/equipment_templates/${editingKey}` : "/api/equipment_templates",
-            method = editingKey ? "PUT" : "POST";
+        const url = editingId ? `/api/equipment_templates/${projectId}/${editingId}` : `/api/equipment_templates/${projectId}`,
+            method = editingId ? "PUT" : "POST";
         const result = await apiCall(url, method, data);
-        await loadInitialData();
-        renderEquipmentLibraryModal();
         if (result) {
-            const newKey = Object.keys(result)[0];
-            loadTemplateForEdit(newKey);
+            const newId = Object.keys(result)[0];
+            loadTemplateForEdit(newId);
         }
     }
 
@@ -480,7 +1075,7 @@
         for (const panel of appData.panels) {
             const equipmentInPanel = appData.scheduledEquipment.filter(item => item.panelName === panel.panelName);
             const details = document.createElement("details");
-            details.open = !0;
+            details.open = true;
             const summary = document.createElement("summary");
             summary.textContent = `${panel.panelName} (${panel.floor})`;
             summary.dataset.panelName = panel.panelName;
@@ -514,10 +1109,9 @@
 
     function populateEquipmentTypes() {
         equipmentTypeSelect.innerHTML = '<option value="">--- Select ---</option>';
-        Object.keys(appData.equipmentTemplates).sort((a, b) => appData.equipmentTemplates[a].name.localeCompare(appData.equipmentTemplates[b].name)).forEach(key => {
-            const template = appData.equipmentTemplates[key];
+        Object.values(appData.equipmentTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(template => {
             const option = document.createElement("option");
-            option.value = key;
+            option.value = template.id;
             option.textContent = template.name;
             equipmentTypeSelect.appendChild(option)
         })
@@ -527,8 +1121,8 @@
         resetForm();
         panelNameInput.value = panelName;
         floorNameInput.value = floor;
-        panelNameInput.readOnly = !0;
-        floorNameInput.readOnly = !0;
+        panelNameInput.readOnly = true;
+        floorNameInput.readOnly = true;
         document.querySelectorAll(".panel-list summary").forEach(s => s.classList.remove("active"));
         const summaryEl = document.querySelector(`.panel-list summary[data-panel-name='${panelName}']`);
         summaryEl && summaryEl.classList.add("active");
@@ -590,13 +1184,13 @@
         renderCheckboxes(item.type);
         item.selectedPoints.forEach(pointId => {
             const checkbox = document.getElementById(`point-${pointId}`);
-            if (checkbox) checkbox.checked = !0
+            if (checkbox) checkbox.checked = true
         });
         formTitle.textContent = `Editing: ${item.instanceName}`;
         mainHeader.textContent = `Editing Equipment`;
         submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button>`;
-        panelNameInput.readOnly = !1;
-        floorNameInput.readOnly = !1
+        panelNameInput.readOnly = false;
+        floorNameInput.readOnly = false
     }
 
     function resetForm() {
@@ -609,8 +1203,8 @@
         formTitle.textContent = "Add New Equipment";
         mainHeader.textContent = "Workspace";
         submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button>`;
-        panelNameInput.readOnly = !1;
-        floorNameInput.readOnly = !1
+        panelNameInput.readOnly = false;
+        floorNameInput.readOnly = false
     }
     async function handleFormSubmit(event) {
         event.preventDefault();
@@ -624,10 +1218,9 @@
             type: form["equipment-type"].value,
             selectedPoints: selectedPoints
         };
-        const url = editingId ? `/api/equipment/${editingId}` : "/api/equipment",
+        const url = editingId ? `/api/equipment/${projectId}/${editingId}` : `/api/equipment/${projectId}`,
             method = editingId ? "PUT" : "POST";
         await apiCall(url, method, data);
-        await loadInitialData()
     }
 
     function handleSearch() {
@@ -635,10 +1228,11 @@
         document.querySelectorAll(".panel-list details").forEach(details => {
             const items = Array.from(details.querySelectorAll("li"));
             const panelText = details.querySelector("summary").textContent.toLowerCase();
-            let hasVisibleItem = !1;
+            let hasVisibleItem = false;
             items.forEach(li => {
                 const isVisible = li.textContent.toLowerCase().includes(query);
-                li.style.display = isVisible ? "" : "none", isVisible && (hasVisibleItem = !0)
+                li.style.display = isVisible ? "" : "none";
+                if(isVisible) hasVisibleItem = true;
             });
             details.style.display = panelText.includes(query) || hasVisibleItem ? "" : "none"
         })
@@ -662,8 +1256,19 @@
     form.addEventListener("submit", handleFormSubmit);
     newPointBtn.addEventListener("click", resetPointForm);
     newTemplateBtn.addEventListener("click", resetTemplateForm);
+    newPartBtn.addEventListener("click", resetPartForm);
+    partForm.addEventListener("submit", handlePartFormSubmit);
+    deletePartBtn.addEventListener("click", handleDeletePart);
+    editPartBtn.addEventListener("click", () => {
+        const partId = document.getElementById('point-part-number').value;
+        if(partId) {
+            loadPartForEdit(partId);
+            partsLibraryModal.style.display = "flex";
+        }
+    });
     searchBar.addEventListener("input", handleSearch);
     availablePointsSearch.addEventListener('input', handleAvailablePointsSearch);
+    partsSearch.addEventListener("input", handlePartsSearch);
     mainHeader.addEventListener("click", resetForm);
     equipmentTypeSelect.addEventListener("change", e => renderCheckboxes(e.target.value));
 </script>
