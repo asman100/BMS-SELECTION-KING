@@ -165,12 +165,22 @@ def register():
         return redirect(url_for('project_selection'))
     if request.method == 'POST':
         data = request.get_json()
-        hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
-        user = User(username=data['username'], password=hashed_password)
-        db.session.add(user)
-        db.session.commit()
-        flash('Your account has been created! You are now able to log in', 'success')
-        return jsonify({"success": True, "redirect": url_for('login')})
+        
+        # Check if user already exists
+        existing_user = User.query.filter_by(username=data['username']).first()
+        if existing_user:
+            return jsonify({"success": False, "error": "Username already exists"}), 400
+            
+        try:
+            hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+            user = User(username=data['username'], password=hashed_password)
+            db.session.add(user)
+            db.session.commit()
+            flash('Your account has been created! You are now able to log in', 'success')
+            return jsonify({"success": True, "redirect": url_for('login')})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "error": "Registration failed"}), 500
     return render_template('register.html')
 
 @app.route("/logout")
@@ -278,6 +288,66 @@ def panel_point_summary(panel_id):
                     summary[sp.point_type] = summary.get(sp.point_type, 0) + point_repeat
 
     return jsonify(summary), 200
+
+@app.route('/api/project/<int:project_id>/summary', methods=['GET'])
+@login_required
+def project_summary(project_id):
+    """Get cumulative I/O point summary for all panels in a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    panels = Panel.query.filter_by(project_id=project_id).all()
+    project_summary = {
+        'project_name': project.name,
+        'total_points': {},
+        'panels': []
+    }
+    
+    total_summary = {}
+    
+    for panel in panels:
+        panel_summary = {}
+        equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel.id).all()
+        
+        for equip in equipments:
+            equip_qty = equip.quantity or 1
+            template = equip.equipment_template
+            selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+            for pt in selected_points:
+                etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+                sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+                if not sub_points:
+                    panel_summary['UNKNOWN'] = panel_summary.get('UNKNOWN', 0) + point_repeat
+                    total_summary['UNKNOWN'] = total_summary.get('UNKNOWN', 0) + point_repeat
+                else:
+                    for sp in sub_points:
+                        panel_summary[sp.point_type] = panel_summary.get(sp.point_type, 0) + point_repeat
+                        total_summary[sp.point_type] = total_summary.get(sp.point_type, 0) + point_repeat
+        
+        project_summary['panels'].append({
+            'id': panel.id,
+            'name': panel.panel_name,
+            'floor': panel.floor,
+            'points': panel_summary
+        })
+    
+    project_summary['total_points'] = total_summary
+    return jsonify(project_summary), 200
+
+@app.route('/summary/<int:project_id>')
+@login_required
+def summary_page(project_id):
+    """Render the project summary page."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('summary.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):

@@ -454,6 +454,7 @@
             <ul id="panel-list" class="panel-list"></ul>
             <div class="sidebar-footer">
                 <button id="add-panel-btn" class="btn btn-secondary">+ Add New Panel</button>
+                <button id="project-summary-btn" class="btn btn-primary" style="margin-top: 10px;">📊 Project Summary</button>
                 <a href="{{ url_for('logout') }}" class="btn btn-danger" style="margin-top: 10px;">Logout</a>
             </div>
         </aside>
@@ -730,6 +731,7 @@
         panelNameInput = document.getElementById("panel-name"),
         floorNameInput = document.getElementById("floor-name"),
         addPanelBtn = document.getElementById("add-panel-btn"),
+        projectSummaryBtn = document.getElementById("project-summary-btn"),
         manageLibraryBtn = document.getElementById("manage-library-btn"),
         quantityInput = document.getElementById("quantity");
     const addPanelModal = document.getElementById("add-panel-modal"),
@@ -1414,6 +1416,11 @@
     partsSearch.addEventListener("input", handlePartsSearch);
     mainHeader.addEventListener("click", resetForm);
     equipmentTypeSelect.addEventListener("change", e => renderCheckboxes(e.target.value));
+    
+    // Project Summary button handler
+    projectSummaryBtn.addEventListener("click", () => {
+        window.location.href = `/summary/${projectId}`;
+    });
 
     // Panel delete logic additions
     let panelDeleteModal = document.getElementById('delete-panel-modal');
