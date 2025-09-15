@@ -5,108 +5,636 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projects - BMS Tool</title>
     <style>
-        /* Add some basic styling */
-        body { font-family: sans-serif; }
-        .container { width: 500px; margin: 0 auto; padding-top: 100px; }
-        .project-list { list-style: none; padding: 0; }
-        .project-list li { margin-bottom: 10px; }
-        .project-list a { text-decoration: none; color: #007bff; }
-        .new-project-form { margin-top: 20px; }
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --danger-color: #e53e3e;
+            --warning-color: #d69e2e;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 8px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .projects-section {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .projects-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .project-card {
+            background: var(--white);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .project-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-2px);
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .project-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .project-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .project-actions {
+            display: flex;
+            gap: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .project-card:hover .project-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            padding: 0.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-open {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-open:hover {
+            background: #2a4a6b;
+        }
+
+        .btn-delete {
+            background: var(--danger-color);
+            color: var(--white);
+        }
+
+        .btn-delete:hover {
+            background: #c53030;
+        }
+
+        .project-stats {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            margin-bottom: 2rem;
+        }
+
+        .create-section {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            height: fit-content;
+        }
+
+        .create-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            padding: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(44, 82, 130, 0.1);
+        }
+
+        .btn {
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(44, 82, 130, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: var(--white);
+        }
+
+        .btn-danger:hover {
+            background: #c53030;
+        }
+
+        .quick-actions {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .quick-actions h4 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .quick-actions .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            padding: 0.75rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--white);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .welcome-text {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: var(--white);
+        }
+
+        .btn-warning:hover {
+            background: #b7791f;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h3 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Your Projects</h2>
-        <ul class="project-list">
-            {% for project in projects %}
-                <li>
-                    <a href="{{ url_for('index', project_id=project.id) }}">{{ project.name }}</a>
-                    <button data-project-id="{{ project.id }}" data-project-name="{{ project.name }}" class="delete-project-btn" style="margin-left:10px;color:#b00;">Delete</button>
-                </li>
-            {% endfor %}
-        </ul>
-
-        <div class="new-project-form">
-            <h3>Create New Project</h3>
-            <form id="new-project-form">
-                <div class="form-group">
-                    <label for="project-name">Project Name</label>
-                    <input type="text" id="project-name" required>
-                </div>
-                <button type="submit" class="btn">Create</button>
-            </form>
+    <div class="user-info">
+        <div class="welcome-text">👋 Welcome back!</div>
+        <div class="nav-links">
+            {% if current_user.is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-warning" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-right: 0.5rem;">🛡️ Admin</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Logout</a>
         </div>
-        <p><a href="{{ url_for('logout') }}">Logout</a></p>
-        <!-- Delete Project Modal -->
-        <div id="delete-project-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
-            <div style="background:#fff; padding:20px; width:400px; border-radius:6px;">
-                <h3>Delete Project</h3>
-                <p id="delete-project-warning" style="font-size:0.9rem; line-height:1.4; color:#600;"></p>
-                <p>Type the project name to confirm:</p>
-                <input type="text" id="delete-project-confirm" style="width:100%;" />
-                <p style="margin-top:10px;">Additionally type DELETE below:</p>
-                <input type="text" id="delete-project-confirm-word" style="width:100%;" placeholder="DELETE" />
-                <div style="margin-top:15px; display:flex; justify-content:space-between;">
-                    <button id="cancel-delete-project">Cancel</button>
-                    <button id="confirm-delete-project" style="background:#b00; color:#fff;">Delete Permanently</button>
+    </div>
+
+    <div class="header">
+        <h1>🏢 BMS Projects</h1>
+        <p>Manage your Building Management System projects</p>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="projects-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        📋 Your Projects
+                    </div>
+                </div>
+
+                <div id="projects-container" class="projects-grid">
+                    {% if projects %}
+                        {% for project in projects %}
+                        <div class="project-card" onclick="openProject({{ project.id }})">
+                            <div class="project-header">
+                                <div>
+                                    <div class="project-name">{{ project.name }}</div>
+                                    <div class="project-meta">Created recently</div>
+                                </div>
+                                <div class="project-actions" onclick="event.stopPropagation()">
+                                    <button class="action-btn btn-open" onclick="openProject({{ project.id }})">
+                                        📊 Open
+                                    </button>
+                                    <button class="action-btn btn-delete" onclick="showDeleteModal({{ project.id }}, '{{ project.name }}')">
+                                        🗑️ Delete
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="project-stats">
+                                <div class="stat-item">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Panels</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Equipment</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">-</div>
+                                    <div class="stat-label">Points</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <h3>🚀 Ready to Start?</h3>
+                            <p>Create your first BMS project to begin configuring equipment and managing I/O points.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="create-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        ➕ Create New Project
+                    </div>
+                </div>
+
+                <form id="new-project-form" class="create-form">
+                    <div class="form-group">
+                        <label for="project-name">Project Name</label>
+                        <input type="text" id="project-name" required placeholder="Enter project name..." maxlength="100">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        Create Project
+                    </button>
+                </form>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <span>Creating project...</span>
+                </div>
+
+                <div class="quick-actions">
+                    <h4>📚 Quick Actions</h4>
+                    <button class="btn btn-secondary" onclick="showTemplatesInfo()">
+                        View Templates Guide
+                    </button>
+                    <button class="btn btn-secondary" onclick="showPointsInfo()">
+                        Points Library Help
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Delete Project Modal -->
+    <div id="delete-project-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Delete Project</h3>
+                <p id="delete-project-warning" style="color: var(--danger-color); font-size: 0.9rem;"></p>
+            </div>
+            
+            <div class="form-group">
+                <label>Type the project name to confirm:</label>
+                <input type="text" id="delete-project-confirm" placeholder="Project name">
+            </div>
+            
+            <div class="form-group">
+                <label>Type DELETE to confirm:</label>
+                <input type="text" id="delete-project-confirm-word" placeholder="DELETE">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideDeleteModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const deleteModal = document.getElementById('delete-project-modal');
-        const deleteWarning = document.getElementById('delete-project-warning');
-        const deleteConfirmInput = document.getElementById('delete-project-confirm');
-        const deleteConfirmWordInput = document.getElementById('delete-project-confirm-word');
         let deleteTargetId = null;
         let deleteTargetName = null;
 
-        document.querySelectorAll('.delete-project-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                deleteTargetId = btn.dataset.projectId;
-                deleteTargetName = btn.dataset.projectName;
-                deleteWarning.textContent = `This will permanently remove project "${deleteTargetName}" and ALL its panels, equipment, points, parts and templates. This cannot be undone.`;
-                deleteConfirmInput.value = '';
-                deleteConfirmWordInput.value = '';
-                deleteModal.style.display = 'flex';
-            });
-        });
+        function openProject(projectId) {
+            window.location.href = `/?project_id=${projectId}`;
+        }
 
-        document.getElementById('cancel-delete-project').addEventListener('click', () => {
-            deleteModal.style.display = 'none';
-        });
+        function showDeleteModal(projectId, projectName) {
+            deleteTargetId = projectId;
+            deleteTargetName = projectName;
+            document.getElementById('delete-project-warning').textContent = 
+                `This will permanently remove project "${projectName}" and ALL its data. This cannot be undone.`;
+            document.getElementById('delete-project-confirm').value = '';
+            document.getElementById('delete-project-confirm-word').value = '';
+            document.getElementById('delete-project-modal').style.display = 'flex';
+        }
 
-        document.getElementById('confirm-delete-project').addEventListener('click', async () => {
-            if (deleteConfirmInput.value !== deleteTargetName || deleteConfirmWordInput.value !== 'DELETE') {
+        function hideDeleteModal() {
+            document.getElementById('delete-project-modal').style.display = 'none';
+        }
+
+        async function confirmDelete() {
+            const confirmName = document.getElementById('delete-project-confirm').value;
+            const confirmWord = document.getElementById('delete-project-confirm-word').value;
+            
+            if (confirmName !== deleteTargetName || confirmWord !== 'DELETE') {
                 alert('Confirmation fields do not match.');
                 return;
             }
-            const resp = await fetch(`/projects/${deleteTargetId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmName: deleteTargetName, confirmWord: deleteConfirmWordInput.value }) });
-            if (resp.ok) {
-                window.location.reload();
-            } else {
-                const data = await resp.json().catch(()=>({error:'Delete failed'}));
-                alert(data.error || 'Delete failed');
+
+            try {
+                const response = await fetch(`/projects/${deleteTargetId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmName: deleteTargetName, confirmWord: confirmWord })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const data = await response.json().catch(() => ({ error: 'Delete failed' }));
+                    alert(data.error || 'Delete failed');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
             }
-        });
+        }
+
+        function showTemplatesInfo() {
+            alert('Equipment templates define reusable configurations with predefined I/O points. Create templates in the main project interface under "Manage Equipment & Point Libraries".');
+        }
+
+        function showPointsInfo() {
+            alert('The Points Library contains all available I/O point types (AI, AO, DI, DO, etc.). Points can be assigned to equipment templates and scheduled equipment.');
+        }
+
+        // Form handling
         document.getElementById("new-project-form").addEventListener("submit", async (event) => {
             event.preventDefault();
-            const name = document.getElementById("project-name").value;
+            
+            const name = document.getElementById("project-name").value.trim();
+            if (!name) return;
 
-            const response = await fetch("{{ url_for('create_project') }}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ name })
-            });
+            const form = event.target;
+            const loading = document.getElementById("loading");
+            
+            form.style.display = 'none';
+            loading.style.display = 'block';
 
-            const data = await response.json();
-            if (data.success) {
-                window.location.href = data.redirect;
-            } else {
-                alert(data.error);
+            try {
+                const response = await fetch("{{ url_for('create_project') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.error || 'Failed to create project');
+                    form.style.display = 'flex';
+                    loading.style.display = 'none';
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+                form.style.display = 'flex';
+                loading.style.display = 'none';
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('delete-project-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                hideDeleteModal();
             }
         });
     </script>

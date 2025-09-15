@@ -24,6 +24,9 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
+    is_approved = db.Column(db.Boolean, nullable=False, default=False)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
     projects = db.relationship('Project', backref='owner', lazy=True)
 
 class Project(db.Model):
@@ -153,6 +156,8 @@ def login():
         data = request.get_json()
         user = User.query.filter_by(username=data['username']).first()
         if user and bcrypt.check_password_hash(user.password, data['password']):
+            if not user.is_approved:
+                return jsonify({"success": False, "error": "Your account is pending approval. Please contact an administrator."}), 401
             login_user(user)
             return jsonify({"success": True, "redirect": url_for('project_selection')})
         else:
@@ -173,10 +178,10 @@ def register():
             
         try:
             hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
-            user = User(username=data['username'], password=hashed_password)
+            user = User(username=data['username'], password=hashed_password, is_approved=False)
             db.session.add(user)
             db.session.commit()
-            flash('Your account has been created! You are now able to log in', 'success')
+            flash('Your account has been created and is pending approval. You will be notified when you can log in.', 'success')
             return jsonify({"success": True, "redirect": url_for('login')})
         except Exception as e:
             db.session.rollback()
@@ -188,6 +193,91 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+# --- ADMIN ROUTES ---
+
+def admin_required(f):
+    """Decorator to require admin privileges"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash("Admin access required.", "danger")
+            return redirect(url_for('project_selection'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    users = User.query.order_by(User.created_at.desc()).all()
+    pending_users = User.query.filter_by(is_approved=False).count()
+    total_users = User.query.count()
+    total_projects = Project.query.count()
+    
+    stats = {
+        'total_users': total_users,
+        'pending_users': pending_users,
+        'approved_users': total_users - pending_users,
+        'total_projects': total_projects
+    }
+    
+    return render_template('admin.html', users=users, stats=stats)
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@login_required
+@admin_required
+def approve_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_approved = True
+    db.session.commit()
+    flash(f'User {user.username} has been approved.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
+@login_required
+@admin_required
+def toggle_user_admin(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot modify your own admin status.", "danger")
+        return redirect(url_for('admin_dashboard'))
+    
+    user.is_admin = not user.is_admin
+    db.session.commit()
+    
+    action = "granted" if user.is_admin else "revoked"
+    flash(f'Admin privileges {action} for user {user.username}.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot delete your own account.", "danger")
+        return redirect(url_for('admin_dashboard'))
+    
+    data = request.get_json() or {}
+    if data.get('confirmUsername') != user.username:
+        return jsonify({"error": "Username confirmation mismatch"}), 400
+    
+    # Delete user's projects first
+    for project in user.projects:
+        # Delete project data as in the existing delete_project route
+        ScheduledEquipment.query.filter_by(project_id=project.id).delete(synchronize_session=False)
+        for panel in Panel.query.filter_by(project_id=project.id).all():
+            db.session.delete(panel)
+        db.session.delete(project)
+    
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'User {username} and all associated data has been deleted.', 'success')
+    return jsonify({"success": True})
 
 # --- PROJECT ROUTES ---
 
@@ -709,6 +799,20 @@ def delete_project(project_id):
 def setup_database(app):
     with app.app_context():
         db.create_all()
+        
+        # Create default admin user if no users exist
+        if User.query.count() == 0:
+            admin_password = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin_user = User(
+                username='admin',
+                password=admin_password,
+                is_approved=True,
+                is_admin=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Created default admin user: admin/admin123")
+        
         # Deduplicate global parts on first run after migration (keep lowest id)
         from sqlalchemy import func
         dups = (db.session.query(Part.part_number, func.count(Part.id))
@@ -739,4 +843,4 @@ def setup_database(app):
 
 if __name__ == '__main__':
     setup_database(app)
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, port=5001)
