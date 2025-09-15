@@ -120,6 +120,130 @@
             border-top: 1px solid #4a6a8a;
         }
 
+        .active-users {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: var(--sidebar-item-bg);
+            border-radius: 5px;
+            border: 1px solid #4a6a8a;
+        }
+
+        .active-users h4 {
+            font-size: 12px;
+            color: var(--sidebar-text);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .user-indicator {
+            background: var(--btn-update-bg);
+            color: var(--white);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .user-indicator::before {
+            content: "●";
+            color: #4ade80;
+        }
+
+        .notifications {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 300px;
+        }
+
+        .notification {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.user-action {
+            border-left: 4px solid var(--btn-primary-bg);
+        }
+
+        .notification.user-joined {
+            border-left: 4px solid var(--btn-update-bg);
+        }
+
+        .notification.user-left {
+            border-left: 4px solid var(--btn-danger-bg);
+        }
+
+        .notification-header {
+            font-weight: bold;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .notification-message {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .real-time-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--btn-update-bg);
+            color: var(--white);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .real-time-indicator.connected::before {
+            content: "●";
+            color: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .real-time-indicator.disconnected {
+            background: var(--btn-danger-bg);
+        }
+
+        .real-time-indicator.disconnected::before {
+            content: "●";
+            color: #fca5a5;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         .btn {
             display: block;
             width: 100%;
@@ -452,6 +576,12 @@
             <h2>Panel Overview</h2>
             <input type="search" id="search-bar" class="search-bar" placeholder="🔍 Search equipment...">
             <ul id="panel-list" class="panel-list"></ul>
+            <div class="active-users">
+                <h4>👥 Active Users</h4>
+                <div id="active-users-list" class="user-list">
+                    <div class="user-indicator">Just you</div>
+                </div>
+            </div>
             <div class="sidebar-footer">
                 <button id="add-panel-btn" class="btn btn-secondary">+ Add New Panel</button>
                 <button id="project-summary-btn" class="btn btn-primary" style="margin-top: 10px;">📊 Project Summary</button>
@@ -845,6 +975,8 @@
             document.getElementById('new-panel-name').value='';
             document.getElementById('new-panel-floor').value='';
             addPanelModal.style.display='none';
+            // Broadcast action
+            broadcastUserAction('panel_added', { panelName, floor });
             // Prevent immediate socket-triggered duplicate fetch
             ignoreNextSocketUpdate = true;
         } catch(err) {
@@ -1393,7 +1525,6 @@
     }
 
     // --- EVENT LISTENERS ---
-    document.addEventListener("DOMContentLoaded", loadInitialData);
     pointForm.addEventListener("submit", handlePointFormSubmit);
     pointForm['point-quantity'].addEventListener('change', () => renderSubPoints());
     deletePointBtn.addEventListener("click", handleDeletePoint);
@@ -1422,7 +1553,14 @@
         window.location.href = `/summary/${projectId}`;
     });
 
-    // Panel delete logic additions
+    // Initialize application when page loads
+    document.addEventListener("DOMContentLoaded", () => {
+        loadInitialData();
+        initializeRealTime();
+        
+        // Set current user for real-time features
+        window.currentUser = '{{ current_user.username if current_user.is_authenticated else "Anonymous" }}';
+    });
     let panelDeleteModal = document.getElementById('delete-panel-modal');
     let panelDeleteWarning = document.getElementById('delete-panel-warning');
     let panelDeleteConfirmInput = document.getElementById('delete-panel-confirm');
@@ -1469,5 +1607,14 @@
       });
     };
 </script>
+
+<!-- Real-time Notifications -->
+<div id="notifications" class="notifications"></div>
+
+<!-- Real-time Connection Indicator -->
+<div id="real-time-indicator" class="real-time-indicator">
+    Real-time sync
+</div>
+
 </body>
 </html>

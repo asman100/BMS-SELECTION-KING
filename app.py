@@ -750,22 +750,95 @@ def list_point_templates():
 
 # --- SOCKET.IO ---
 
+# Store active users per project
+active_users = {}
+
 @socketio.on('join')
 def on_join(data):
     room = data['project_id']
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
     join_room(room)
+    
+    # Track active users
+    if room not in active_users:
+        active_users[room] = set()
+    active_users[room].add(username)
+    
+    # Notify others that user joined
+    emit('user_joined', {
+        'username': username,
+        'message': f'{username} joined the project',
+        'active_users': list(active_users[room])
+    }, room=room, include_self=False)
+    
+    # Send current active users to the user who just joined
+    emit('active_users_update', {'active_users': list(active_users[room])})
 
 @socketio.on('leave')
 def on_leave(data):
     room = data['project_id']
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
     leave_room(room)
+    
+    # Remove from active users
+    if room in active_users:
+        active_users[room].discard(username)
+        if len(active_users[room]) == 0:
+            del active_users[room]
+        else:
+            # Notify others that user left
+            emit('user_left', {
+                'username': username,
+                'message': f'{username} left the project',
+                'active_users': list(active_users[room])
+            }, room=room)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
+    # Remove user from all rooms
+    for room in list(active_users.keys()):
+        if username in active_users[room]:
+            active_users[room].discard(username)
+            if len(active_users[room]) == 0:
+                del active_users[room]
+            else:
+                emit('user_left', {
+                    'username': username,
+                    'message': f'{username} disconnected',
+                    'active_users': list(active_users[room])
+                }, room=room)
+
+@socketio.on('user_action')
+def on_user_action(data):
+    """Handle real-time user actions like editing, adding equipment, etc."""
+    room = data.get('project_id')
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
+    action_type = data.get('action_type')
+    action_data = data.get('data', {})
+    
+    # Broadcast action to other users in the room
+    emit('real_time_action', {
+        'username': username,
+        'action_type': action_type,
+        'data': action_data,
+        'timestamp': data.get('timestamp')
+    }, room=room, include_self=False)
 
 def broadcast_update(project_id):
-    socketio.emit('update', {'project_id': project_id}, room=project_id)
+    """Enhanced broadcast with user action info"""
+    socketio.emit('update', {
+        'project_id': project_id,
+        'timestamp': db.func.current_timestamp(),
+        'updated_by': current_user.username if current_user.is_authenticated else 'System'
+    }, room=project_id)
 
 def broadcast_global_catalog():
     """Emit event notifying clients that global catalogs (templates/points/parts) changed."""
-    socketio.emit('global_catalog_update', {})
+    socketio.emit('global_catalog_update', {
+        'updated_by': current_user.username if current_user.is_authenticated else 'System',
+        'timestamp': db.func.current_timestamp()
+    })
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])
 @login_required
