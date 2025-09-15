@@ -101,7 +101,7 @@ class EquipmentTemplate(db.Model):
     available_points = db.relationship('EquipmentTemplatePoint', backref='equipment_template', lazy='dynamic', cascade="all, delete-orphan")
 
     def to_dict(self):
-        return {"id": self.id, "name": self.name, "points": [{"id": etp.point_template_id, "quantity": etp.quantity} for etp in self.available_points]}
+        return {"id": self.id, "type_key": self.type_key, "name": self.name, "points": [{"id": etp.point_template_id, "quantity": etp.quantity} for etp in self.available_points]}
 
 selected_points_association = db.Table('selected_points',
     db.Column('scheduled_equipment_id', db.Integer, db.ForeignKey('scheduled_equipment.id')),
@@ -219,7 +219,7 @@ def get_all_data(project_id):
     panels = [p.to_dict() for p in Panel.query.filter_by(project_id=project_id).all()]
     scheduled_equipment = [e.to_dict() for e in ScheduledEquipment.query.filter_by(project_id=project_id).all()]
     point_templates = {pt.id: pt.to_dict() for pt in PointTemplate.query.filter_by(project_id=project_id).all()}
-    equipment_templates = {et.id: et.to_dict() for et in EquipmentTemplate.query.filter_by(project_id=project_id).all()}
+    equipment_templates = {et.type_key: et.to_dict() for et in EquipmentTemplate.query.filter_by(project_id=project_id).all()}
     parts = {p.id: p.to_dict() for p in Part.query.filter_by(project_id=project_id).all()}
     
     return jsonify({
@@ -289,7 +289,8 @@ def add_equipment(project_id):
         db.session.add(panel)
         db.session.commit()
 
-    template = EquipmentTemplate.query.filter_by(id=data['type'], project_id=project_id).first_or_404()
+    # Frontend sends equipment type as the template's type_key
+    template = EquipmentTemplate.query.filter_by(type_key=data['type'], project_id=project_id).first_or_404()
     
     new_equip = ScheduledEquipment(
         instance_name=data['instanceName'],
@@ -322,7 +323,8 @@ def update_equipment(project_id, id):
         db.session.add(panel)
         db.session.commit()
 
-    template = EquipmentTemplate.query.filter_by(id=data['type'], project_id=project_id).first_or_404()
+    # Frontend sends equipment type as the template's type_key
+    template = EquipmentTemplate.query.filter_by(type_key=data['type'], project_id=project_id).first_or_404()
 
     equip.instance_name = data['instanceName']
     equip.quantity = data.get('quantity', 1)
@@ -420,14 +422,14 @@ def add_equipment_template(project_id):
     broadcast_update(project_id)
     return jsonify({new_template.id: new_template.to_dict()}), 201
 
-@app.route('/api/equipment_templates/<int:project_id>/<int:id>', methods=['PUT'])
+@app.route('/api/equipment_templates/<int:project_id>/<string:key>', methods=['PUT'])
 @login_required
-def update_equipment_template(project_id, id):
+def update_equipment_template(project_id, key):
     project = Project.query.get_or_404(project_id)
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
     data = request.get_json()
-    template = EquipmentTemplate.query.get_or_404(id)
+    template = EquipmentTemplate.query.filter_by(type_key=key, project_id=project_id).first_or_404()
 
     new_key = data['typeKey']
     if template.type_key != new_key:

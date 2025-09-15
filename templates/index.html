@@ -988,11 +988,15 @@
         Object.values(appData.equipmentTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(template => {
             const li = document.createElement("li");
             li.innerHTML = `<span>${template.name}</span><span class="list-item-controls"><button title="Replicate">📋</button></span>`;
-            li.dataset.id = template.id;
-            li.onclick = () => loadTemplateForEdit(template.id);
+            li.dataset.id = template.type_key;
+            li.onclick = () => loadTemplateForEdit(template.type_key);
             li.querySelector("button").onclick = async e => {
                 e.stopPropagation();
-                await apiCall(`/api/equipment_templates/${projectId}/${template.id}/replicate`, "POST");
+                await apiCall(`/api/equipment_templates/${projectId}/${template.type_key}/replicate`, "POST");
+                // After replication, reload the equipment templates
+                const updatedData = await apiCall(`/api/data/${projectId}`);
+                appData.equipmentTemplates = updatedData.equipmentTemplates;
+                renderEquipmentLibraryModal();
             };
             templateList.appendChild(li)
         });
@@ -1050,7 +1054,7 @@
     }
     async function handleTemplateFormSubmit(event) {
         event.preventDefault();
-        const editingId = editingTemplateKeyInput.value;
+        const editingKey = editingTemplateKeyInput.value;
         const points = Array.from(assignedPointsList.querySelectorAll("li")).map(li => ({
             id: parseInt(li.dataset.id),
             quantity: parseInt(li.dataset.quantity)
@@ -1060,13 +1064,21 @@
             typeKey: templateForm["template-key"].value,
             points: points
         };
-        const url = editingId ? `/api/equipment_templates/${projectId}/${editingId}` : `/api/equipment_templates/${projectId}`,
-            method = editingId ? "PUT" : "POST";
-        const result = await apiCall(url, method, data);
-        if (result) {
-            const newId = Object.keys(result)[0];
-            loadTemplateForEdit(newId);
-        }
+        const url = editingKey ? `/api/equipment_templates/${projectId}/${editingKey}` : `/api/equipment_templates/${projectId}`,
+            method = editingKey ? "PUT" : "POST";
+        
+        await apiCall(url, method, data);
+        
+        // Only update the equipment templates, not all data
+        const updatedData = await apiCall(`/api/data/${projectId}`);
+        appData.equipmentTemplates = updatedData.equipmentTemplates;
+        
+        // Re-render the equipment library modal
+        renderEquipmentLibraryModal();
+        
+        // Load the template for editing (using the new key if it changed)
+        const newKey = data.typeKey;
+        loadTemplateForEdit(newKey);
     }
 
     // --- MAIN APP LOGIC ---
@@ -1111,7 +1123,7 @@
         equipmentTypeSelect.innerHTML = '<option value="">--- Select ---</option>';
         Object.values(appData.equipmentTemplates).sort((a, b) => a.name.localeCompare(b.name)).forEach(template => {
             const option = document.createElement("option");
-            option.value = template.id;
+            option.value = template.type_key;
             option.textContent = template.name;
             equipmentTypeSelect.appendChild(option)
         })
