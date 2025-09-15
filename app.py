@@ -322,7 +322,12 @@ def add_equipment(project_id):
     )
     
     points = PointTemplate.query.filter(PointTemplate.id.in_(data['selectedPoints'])).all()
-    new_equip.selected_points.extend(points)
+    # Ensure uniqueness to avoid duplicate association rows
+    seen = set()
+    for p in points:
+        if p.id not in seen:
+            new_equip.selected_points.append(p)
+            seen.add(p.id)
     
     db.session.add(new_equip)
     db.session.commit()
@@ -352,9 +357,17 @@ def update_equipment(project_id, id):
     equip.panel_id = panel.id
     equip.equipment_template_id = template.id
     
-    equip.selected_points = []
+    # Clear existing associations safely (dynamic relationship supports clear())
+    if hasattr(equip.selected_points, 'clear'):
+        equip.selected_points.clear()
+    else:
+        equip.selected_points = []
     points = PointTemplate.query.filter(PointTemplate.id.in_(data['selectedPoints'])).all()
-    equip.selected_points.extend(points)
+    seen = set()
+    for p in points:
+        if p.id not in seen:
+            equip.selected_points.append(p)
+            seen.add(p.id)
         
     db.session.commit()
     broadcast_update(project_id)
@@ -376,6 +389,7 @@ def add_point(project_id):
     db.session.add(new_point)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify(new_point.to_dict()), 201
 
 @app.route('/api/points/<int:project_id>/<int:id>', methods=['PUT'])
@@ -401,6 +415,7 @@ def update_point(project_id, id):
 
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify(point.to_dict()), 200
 
 @app.route('/api/points/<int:project_id>/<int:id>', methods=['DELETE'])
@@ -415,6 +430,7 @@ def delete_point(project_id, id):
     db.session.delete(point)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify({"message": "Point deleted"}), 200
 
 @app.route('/api/equipment_templates/<int:project_id>', methods=['POST'])
@@ -441,6 +457,7 @@ def add_equipment_template(project_id):
     db.session.add(new_template)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify({new_template.id: new_template.to_dict()}), 201
 
 @app.route('/api/equipment_templates/<int:project_id>/<string:key>', methods=['PUT'])
@@ -470,6 +487,7 @@ def update_equipment_template(project_id, key):
     
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify({template.id: template.to_dict()}), 200
 
 @app.route('/api/equipment_templates/<int:project_id>/<int:id>/replicate', methods=['POST'])
@@ -496,6 +514,7 @@ def replicate_equipment_template(project_id, id):
     db.session.add(replicated)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify({replicated.id: replicated.to_dict()}), 201
 
 @app.route('/api/parts/<int:project_id>', methods=['POST'])
@@ -519,6 +538,7 @@ def add_part(project_id):
     db.session.add(new_part)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify(new_part.to_dict()), 201
 
 @app.route('/api/parts/<int:project_id>/<int:id>', methods=['PUT'])
@@ -539,6 +559,7 @@ def update_part(project_id, id):
     part.cable_recommendation = data.get('cable_recommendation')
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify(part.to_dict()), 200
 
 @app.route('/api/parts/<int:project_id>/<int:id>', methods=['DELETE'])
@@ -553,7 +574,19 @@ def delete_part(project_id, id):
     db.session.delete(part)
     db.session.commit()
     broadcast_update(project_id)
+    broadcast_global_catalog()
     return jsonify({"message": "Part deleted"}), 200
+
+# --- GLOBAL READ-ONLY CATALOG ENDPOINTS ---
+@app.route('/api/equipment_templates', methods=['GET'])
+@login_required
+def list_equipment_templates():
+    return jsonify({et.type_key: et.to_dict() for et in EquipmentTemplate.query.all()}), 200
+
+@app.route('/api/point_templates', methods=['GET'])
+@login_required
+def list_point_templates():
+    return jsonify({pt.id: pt.to_dict() for pt in PointTemplate.query.all()}), 200
 
 # --- SOCKET.IO ---
 
@@ -569,6 +602,10 @@ def on_leave(data):
 
 def broadcast_update(project_id):
     socketio.emit('update', {'project_id': project_id}, room=project_id)
+
+def broadcast_global_catalog():
+    """Emit event notifying clients that global catalogs (templates/points/parts) changed."""
+    socketio.emit('global_catalog_update', {})
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])
 @login_required
@@ -615,6 +652,20 @@ def setup_database(app):
                 db.session.delete(obsolete)
         if dups:
             db.session.commit()
+        # Deduplicate selected_points association table to prevent StaleDataError on updates
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("""
+                DELETE FROM selected_points
+                WHERE rowid NOT IN (
+                  SELECT MIN(rowid) FROM selected_points
+                  GROUP BY scheduled_equipment_id, point_template_id
+                )
+            """))
+            db.session.commit()
+        except Exception as e:
+            # Log and continue; non-fatal if cleanup fails
+            print(f"Warning: failed to deduplicate selected_points table: {e}")
 
 if __name__ == '__main__':
     setup_database(app)

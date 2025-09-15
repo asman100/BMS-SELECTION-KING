@@ -653,6 +653,62 @@
         socket.emit('join', { project_id: projectId });
     });
 
+    // Listen for project-scoped data changes (existing behavior retained elsewhere if added later)
+    socket.on('update', async (payload) => {
+        if (ignoreNextSocketUpdate) { ignoreNextSocketUpdate = false; return; }
+        const preservedType = form["equipment-type"].value;
+        // Lightweight full refresh for now (unchanged logic) - could be optimized later
+        const updated = await apiCall(`/api/data/${projectId}`);
+        appData.panels = updated.panels;
+        appData.scheduledEquipment = updated.scheduledEquipment;
+        appData.pointTemplates = updated.pointTemplates;
+        appData.equipmentTemplates = updated.equipmentTemplates;
+        appData.parts = updated.parts;
+        renderSidebar();
+        populateEquipmentTypes();
+        if (preservedType && appData.equipmentTemplates[preservedType]) {
+            form["equipment-type"].value = preservedType;
+        }
+    });
+
+    // Listen for global catalog updates (points, equipment templates, parts)
+    socket.on('global_catalog_update', async () => {
+        try {
+            const preservedType = form["equipment-type"].value;
+            const [templates, points] = await Promise.all([
+                apiCall('/api/equipment_templates'),
+                apiCall('/api/point_templates')
+            ]);
+            // Merge into appData keeping existing panels / scheduled equipment
+            appData.equipmentTemplates = templates;
+            appData.pointTemplates = points;
+            // Parts may also change; reuse /api/data or create a dedicated /api/parts later.
+            // For now fetch parts from /api/data minimal call (could be its own endpoint later)
+            const partial = await apiCall(`/api/data/${projectId}`); // reuse to get parts only
+            appData.parts = partial.parts;
+            populateEquipmentTypes();
+            if (preservedType) {
+                // If key still exists after rename edits, restore it. If template was renamed, we can't infer new key here.
+                if (appData.equipmentTemplates[preservedType]) {
+                    form["equipment-type"].value = preservedType;
+                }
+            }
+            // If a template edit modal is open, re-render its lists without losing selection
+            if (equipmentLibraryModal.style.display === 'flex') {
+                const activeTemplate = editingTemplateKeyInput.value || null;
+                renderEquipmentLibraryModal();
+                if (activeTemplate) loadTemplateForEdit(activeTemplate);
+            }
+            if (pointsLibraryModal.style.display === 'flex') {
+                const activePoint = editingPointIdInput.value || null;
+                renderPointsModal();
+                if (activePoint) loadPointForEdit(activePoint);
+            }
+        } catch (e) {
+            console.warn('Failed to refresh global catalog incrementally, falling back to full reload.', e);
+        }
+    });
+
     // --- GLOBAL STATE & DOM REFS ---
     let appData = {
         panels: [],
@@ -766,26 +822,17 @@
     setupModal(pointsLibraryModal, managePointsBtn, ".modal-close-btn", renderPointsModal);
     setupModal(partsLibraryModal, managePartsBtn, ".modal-close-btn", renderPartsModal);
 
-    // --- PANEL LOGIC ---
-    async function handleAddPanel(event) {
-        event.preventDefault();
-        const panelName = addPanelForm["new-panel-name"].value,
-            floor = addPanelForm["new-panel-floor"].value;
-        if (appData.panels.some(p => p.panelName.toLowerCase() === panelName.toLowerCase())) return alert("A panel with this name already exists.");
-        await apiCall(`/api/panel/${projectId}`, "POST", {
-            panelName,
-            floor
-        });
-        addPanelModal.style.display = "none";
-    }
-
-    // Add Panel form submission (optimistic update)
+    // --- PANEL LOGIC (single optimistic handler) ---
     addPanelForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const panelName = document.getElementById('new-panel-name').value.trim();
         const floor = document.getElementById('new-panel-floor').value.trim();
         if(!panelName || !floor) return;
         try {
+            if (appData.panels.some(p => p.panelName.toLowerCase() === panelName.toLowerCase())) {
+                alert('A panel with this name already exists.');
+                return;
+            }
             const created = await apiCall(`/api/panel/${projectId}`, 'POST', { panelName, floor });
             // Optimistically update state
             appData.panels.push(created);
@@ -796,6 +843,8 @@
             document.getElementById('new-panel-name').value='';
             document.getElementById('new-panel-floor').value='';
             addPanelModal.style.display='none';
+            // Prevent immediate socket-triggered duplicate fetch
+            ignoreNextSocketUpdate = true;
         } catch(err) {
             alert(err.error || 'Failed to add panel');
         }
@@ -1343,7 +1392,6 @@
 
     // --- EVENT LISTENERS ---
     document.addEventListener("DOMContentLoaded", loadInitialData);
-    addPanelForm.addEventListener("submit", handleAddPanel);
     pointForm.addEventListener("submit", handlePointFormSubmit);
     pointForm['point-quantity'].addEventListener('change', () => renderSubPoints());
     deletePointBtn.addEventListener("click", handleDeletePoint);
