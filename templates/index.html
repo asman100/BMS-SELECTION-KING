@@ -579,7 +579,10 @@
         if (!item) return;
         resetForm();
         document.querySelectorAll(".equipment-sublist a").forEach(a => a.classList.remove("active"));
-        document.querySelector(`.equipment-sublist a[data-id='${id}']`).classList.add("active");
+        const equipmentLink = document.querySelector(`.equipment-sublist a[data-id='${id}']`);
+        if (equipmentLink) {
+            equipmentLink.classList.add("active");
+        }
         const panel = appData.panels.find(p => p.panelName === item.panelName);
         panelNameInput.value = item.panelName;
         floorNameInput.value = panel.floor;
@@ -627,7 +630,13 @@
         const url = editingId ? `/api/equipment/${editingId}` : "/api/equipment",
             method = editingId ? "PUT" : "POST";
         await apiCall(url, method, data);
-        await loadInitialData()
+        await loadInitialData();
+        
+        // If we were editing, reload the equipment for editing to show updated values
+        // Use setTimeout to ensure DOM is ready after loadInitialData
+        if (editingId) {
+            setTimeout(() => loadEquipmentForEdit(editingId), 0);
+        }
     }
 
     function handleSearch() {
