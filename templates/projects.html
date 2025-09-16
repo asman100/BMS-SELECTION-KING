@@ -436,34 +436,34 @@
                 </div>
 
                 <div id="projects-container" class="projects-grid">
-                    {% if projects %}
-                        {% for project in projects %}
-                        <div class="project-card" onclick="openProject({{ project.id }})">
+                    {% if project_stats %}
+                        {% for project_stat in project_stats %}
+                        <div class="project-card" onclick="openProject({{ project_stat.project.id }})">
                             <div class="project-header">
                                 <div>
-                                    <div class="project-name">{{ project.name }}</div>
+                                    <div class="project-name">{{ project_stat.project.name }}</div>
                                     <div class="project-meta">Created recently</div>
                                 </div>
                                 <div class="project-actions" onclick="event.stopPropagation()">
-                                    <button class="action-btn btn-open" onclick="openProject({{ project.id }})">
+                                    <button class="action-btn btn-open" onclick="openProject({{ project_stat.project.id }})">
                                         📊 Open
                                     </button>
-                                    <button class="action-btn btn-delete" onclick="showDeleteModal({{ project.id }}, '{{ project.name }}')">
+                                    <button class="action-btn btn-delete" onclick="showDeleteModal({{ project_stat.project.id }}, '{{ project_stat.project.name }}')">
                                         🗑️ Delete
                                     </button>
                                 </div>
                             </div>
                             <div class="project-stats">
                                 <div class="stat-item">
-                                    <div class="stat-value">-</div>
+                                    <div class="stat-value">{{ project_stat.panels_count }}</div>
                                     <div class="stat-label">Panels</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-value">-</div>
+                                    <div class="stat-value">{{ project_stat.equipment_count }}</div>
                                     <div class="stat-label">Equipment</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-value">-</div>
+                                    <div class="stat-value">{{ project_stat.points_count }}</div>
                                     <div class="stat-label">Points</div>
                                 </div>
                             </div>
