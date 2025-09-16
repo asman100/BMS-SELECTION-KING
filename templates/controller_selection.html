@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controller Selection - BMS Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         :root {
             --primary-color: #2c5282;
@@ -886,6 +887,20 @@
 
                 boqData = data;
                 displayBOQ();
+                
+                // Ensure Generate Point List button is visible after BOQ generation
+                setTimeout(() => {
+                    const boqSection = document.getElementById('boq-section');
+                    const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
+                    
+                    if (boqSection && pointListButton) {
+                        boqSection.style.display = 'block';
+                        pointListButton.style.display = 'inline-block';
+                        pointListButton.style.visibility = 'visible';
+                        pointListButton.style.opacity = '1';
+                        pointListButton.disabled = false;
+                    }
+                }, 200);
 
                 showNotification('BOQ report generated successfully!', 'success');
             } catch (error) {
@@ -1167,6 +1182,53 @@
                 }
             }, 5000);
         }
+
+        // Real-time update handlers for immediate point data refresh
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            
+            socket.on('global_catalog_update', function(data) {
+                console.log('Global catalog updated:', data);
+                // Immediately refresh any open equipment template dialogs
+                setTimeout(() => {
+                    if (window.refreshEquipmentDialog) {
+                        window.refreshEquipmentDialog();
+                    }
+                }, 100);
+                showNotification('Point library updated in real-time', 'info');
+            });
+
+            socket.on('project_data_update', function(data) {
+                console.log('Project data updated:', data);
+                if (data.type && (data.type.includes('point') || data.type.includes('template'))) {
+                    // Refresh equipment template dialogs immediately
+                    setTimeout(() => {
+                        if (window.refreshEquipmentDialog) {
+                            window.refreshEquipmentDialog();
+                        }
+                    }, 100);
+                    showNotification('Equipment data updated', 'success');
+                }
+            });
+        }
+
+        // Enhanced BOQ display function to ensure point list button is always visible
+        function displayBOQEnhanced() {
+            displayBOQ();
+            // Ensure Generate Point List button is visible
+            setTimeout(() => {
+                const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
+                if (pointListButton) {
+                    pointListButton.style.display = 'inline-block';
+                    pointListButton.style.visibility = 'visible';
+                    pointListButton.style.opacity = '1';
+                }
+            }, 100);
+        }
+
+        // Override the original displayBOQ to use enhanced version
+        const originalDisplayBOQ = displayBOQ;
+        displayBOQ = displayBOQEnhanced;
 
         // Load data when page loads
         document.addEventListener('DOMContentLoaded', loadControllerSelectionData);
