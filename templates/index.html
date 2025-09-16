@@ -7,62 +7,135 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.2/socket.io.js"></script>
     <style>
         :root {
-            --primary-bg: #f4f7fa;
-            --sidebar-bg: #1a3b5d;
-            --sidebar-item-bg: #2a4b6d;
-            --sidebar-item-hover-bg: #3a5b7d;
-            --sidebar-text: #fff;
-            --sidebar-link-text: #aed9ff;
-            --main-header-text: #1a3b5d;
-            --section-header-text: #005a9e;
-            --border-color: #e0e6ed;
-            --white: #fff;
-            --btn-primary-bg: #007bff;
-            --btn-update-bg: #28a745;
-            --btn-secondary-bg: #4a6a8a;
-            --btn-danger-bg: #dc3545;
+            --primary-bg: #f8fafc;
+            --sidebar-bg: #1e293b;
+            --sidebar-item-bg: #334155;
+            --sidebar-item-hover-bg: #475569;
+            --sidebar-text: #f1f5f9;
+            --sidebar-link-text: #cbd5e1;
+            --main-header-text: #1e293b;
+            --section-header-text: #0f172a;
+            --border-color: #e2e8f0;
+            --white: #ffffff;
+            --btn-primary-bg: #3b82f6;
+            --btn-update-bg: #10b981;
+            --btn-secondary-bg: #64748b;
+            --btn-danger-bg: #ef4444;
+            --accent-color: #8b5cf6;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --error-color: #dc2626;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--primary-bg);
-            color: #333;
+            color: #374151;
             margin: 0;
             height: 100vh;
             overflow: hidden;
         }
 
+        .app-header {
+            background: linear-gradient(135deg, var(--sidebar-bg), var(--accent-color));
+            color: var(--white);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .back-to-projects {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .back-to-projects:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .project-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
         .app-layout {
             display: flex;
-            height: 100%;
+            height: calc(100vh - 60px); /* Subtract header height */
         }
 
         .sidebar {
-            width: 280px;
+            width: 320px;
             background-color: var(--sidebar-bg);
             color: var(--sidebar-text);
-            padding: 20px;
+            padding: 1.5rem;
             display: flex;
             flex-direction: column;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-lg);
             flex-shrink: 0;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .sidebar h2 {
-            margin: 0 0 10px 0;
-            font-size: 20px;
+            margin: 0 0 1.5rem 0;
+            font-size: 1.125rem;
+            font-weight: 600;
             text-align: center;
+            color: var(--sidebar-text);
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .search-bar {
             width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #4a6a8a;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
             background-color: var(--sidebar-item-bg);
             color: var(--sidebar-text);
             box-sizing: border-box;
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .search-bar::placeholder {
+            color: var(--sidebar-link-text);
+        }
+
+        .search-bar:focus {
+            outline: none;
+            border-color: var(--btn-primary-bg);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         .panel-list {
@@ -71,33 +144,138 @@
             margin: 0;
             overflow-y: auto;
             flex-grow: 1;
+            scrollbar-width: thin;
+            scrollbar-color: var(--sidebar-item-hover-bg) transparent;
+        }
+
+        .panel-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .panel-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .panel-list::-webkit-scrollbar-thumb {
+            background-color: var(--sidebar-item-hover-bg);
+            border-radius: 3px;
         }
 
         .panel-list details {
-            margin-bottom: 5px;
+            margin-bottom: 0.5rem;
         }
 
         .panel-list summary {
             cursor: pointer;
-            padding: 10px;
+            padding: 0.75rem;
             background-color: var(--sidebar-item-bg);
-            border-radius: 5px;
-            font-weight: bold;
-            list-style: none; /* Hide the default marker */
-            transition: background-color 0.2s;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            list-style: none;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            position: relative;
+            font-size: 0.875rem;
         }
-        .panel-list summary::-webkit-details-marker { display: none; }
+        
+        .panel-list summary::-webkit-details-marker { 
+            display: none; 
+        }
+
+        .panel-list summary::before {
+            content: '▶';
+            position: absolute;
+            right: 0.75rem;
+            transition: transform 0.2s ease;
+            font-size: 0.75rem;
+            color: var(--sidebar-link-text);
+        }
+
+        .panel-list details[open] summary::before {
+            transform: rotate(90deg);
+        }
 
         .panel-list summary:hover {
             background-color: var(--sidebar-item-hover-bg);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
         }
+        
         .panel-list summary.active {
             background-color: var(--btn-primary-bg);
+            border-color: var(--btn-primary-bg);
+            box-shadow: var(--shadow-sm);
         }
 
         .equipment-sublist {
             list-style: none;
-            padding: 10px 0 5px 20px;
+            padding: 0.75rem 0 0.5rem 1.5rem;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 0 0 0.5rem 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .equipment-sublist li {
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.25rem;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.8rem;
+            border-left: 3px solid transparent;
+        }
+
+        .equipment-sublist li:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-left-color: var(--btn-primary-bg);
+            transform: translateX(2px);
+        }
+
+        .equipment-sublist li.selected {
+            background-color: var(--btn-primary-bg);
+            border-left-color: var(--white);
+            font-weight: 500;
+        }
+
+        .active-users {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .active-users h4 {
+            margin: 0 0 1rem 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--sidebar-link-text);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .user-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background-color: var(--sidebar-item-bg);
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            color: var(--sidebar-link-text);
+        }
+
+        .user-indicator::before {
+            content: '●';
+            color: var(--success-color);
+            font-size: 0.75rem;
+        }
         }
 
         .equipment-sublist li a {
@@ -116,25 +294,14 @@
 
         .sidebar-footer {
             margin-top: auto;
-            padding-top: 15px;
-            border-top: 1px solid #4a6a8a;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
         }
 
-        .active-users {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: var(--sidebar-item-bg);
-            border-radius: 5px;
-            border: 1px solid #4a6a8a;
-        }
 
-        .active-users h4 {
-            font-size: 12px;
-            color: var(--sidebar-text);
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
 
         .user-list {
             display: flex;
@@ -245,79 +412,146 @@
         }
 
         .btn {
-            display: block;
-            width: 100%;
-            padding: 12px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            text-align: center;
-            border-radius: 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
             border: none;
+            border-radius: 0.5rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            box-shadow: var(--shadow-sm);
+            min-height: 2.5rem;
             box-sizing: border-box;
         }
 
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-block {
+            display: block;
+            width: 100%;
+        }
+
         .btn-primary {
-            background-color: var(--btn-primary-bg);
+            background: linear-gradient(135deg, var(--btn-primary-bg), #2563eb);
             color: var(--white);
         }
-        .btn-primary:hover { background-color: #0069d9; }
+        .btn-primary:hover { 
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
 
         .btn-update {
-            background-color: var(--btn-update-bg);
+            background: linear-gradient(135deg, var(--btn-update-bg), #059669);
             color: var(--white);
         }
-        .btn-update:hover { background-color: #218838; }
+        .btn-update:hover { 
+            background: linear-gradient(135deg, #059669, #047857);
+        }
 
         .btn-secondary {
-            background-color: var(--btn-secondary-bg);
+            background: linear-gradient(135deg, var(--btn-secondary-bg), #475569);
             color: var(--white);
         }
-        .btn-secondary:hover { background-color: #3a5a7a; }
+        .btn-secondary:hover { 
+            background: linear-gradient(135deg, #475569, #334155);
+        }
 
         .btn-danger {
-            background-color: var(--btn-danger-bg);
+            background: linear-gradient(135deg, var(--btn-danger-bg), #dc2626);
             color: var(--white);
         }
-        .btn-danger:hover { background-color: #c82333; }
+        .btn-danger:hover { 
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+        }
 
         .btn-link {
-            background: none;
-            border: none;
+            background: transparent;
             color: var(--btn-primary-bg);
-            text-decoration: underline;
-            cursor: pointer;
-            padding: 0;
-            font-size: 14px;
+            text-decoration: none;
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+        }
+        .btn-link:hover {
+            background-color: var(--primary-bg);
+            border-color: var(--btn-primary-bg);
         }
 
         .main-content {
             flex-grow: 1;
-            padding: 25px;
+            padding: 0;
             display: flex;
             flex-direction: column;
             overflow-y: auto;
+            background-color: var(--white);
         }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+        .content-header {
+            background: linear-gradient(135deg, var(--white), #f8fafc);
+            padding: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
         }
 
-        .header h1 {
-            margin: 0;
+        .content-header h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
+            font-weight: 700;
             color: var(--main-header-text);
-            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
+
+        .content-header-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .content-body {
+            flex-grow: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+
 
         .stage {
             background-color: var(--white);
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .stage h3 {
+            margin: 0 0 1.5rem 0;
+            color: var(--section-header-text);
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stage h3::before {
+            content: '📝';
+            font-size: 1.25rem;
         }
 
         #form-title {
@@ -329,23 +563,45 @@
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 1.5rem;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--section-header-text);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
 
         input[type="text"],
         input[type="number"],
-        select {
+        select,
+        textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            background-color: var(--white);
             box-sizing: border-box;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--btn-primary-bg);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            transform: translateY(-1px);
+        }
+
+        input::placeholder {
+            color: #9ca3af;
         }
 
         .checkbox-group {
@@ -397,20 +653,24 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
+            background-color: rgba(0, 0, 0, 0.75);
             z-index: 1000;
             justify-content: center;
             align-items: center;
+            backdrop-filter: blur(4px);
         }
 
         .modal-content {
-            background-color: var(--primary-bg);
-            padding: 25px;
-            border-radius: 8px;
+            background-color: var(--white);
+            padding: 2rem;
+            border-radius: 1rem;
             width: 90%;
             max-width: 800px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-lg);
             position: relative;
+            border: 1px solid var(--border-color);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .modal-header {
@@ -418,37 +678,56 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid var(--border-color);
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .modal-header h2 {
             margin: 0;
             color: var(--main-header-text);
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .modal-close-btn {
-            font-size: 24px;
+            font-size: 1.5rem;
             font-weight: bold;
             border: none;
             background: none;
             cursor: pointer;
-            color: #888;
+            color: #6b7280;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close-btn:hover {
+            background-color: #f3f4f6;
+            color: var(--error-color);
         }
 
         .modal-body {
             display: flex;
-            gap: 20px;
+            gap: 2rem;
             max-height: 60vh;
             overflow-y: auto;
         }
 
         .modal-list-pane {
             flex: 1;
+            min-width: 250px;
         }
 
         .modal-form-pane {
             flex: 2;
+            min-width: 400px;
         }
 
         #template-list li,
@@ -533,19 +812,27 @@
         }
 
         .modal-footer {
-            margin-top: 20px;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-end;
+            gap: 1rem;
         }
 
         .form-row {
-            display: flex;
-            gap: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
         }
 
-        .form-row .form-group {
-            flex: 1;
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+
+        .form-row.triple {
+            grid-template-columns: 2fr 1fr;
         }
 
         #parts-table {
@@ -568,8 +855,18 @@
     </style>
 </head>
 <body>
-<!-- Back to Projects -->
-<a href="/projects" style="position:fixed; top:10px; left:10px; background:#444; color:#fff; padding:6px 10px; text-decoration:none; border-radius:4px; z-index:1000;">← Projects</a>
+    <!-- App Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <a href="/projects" class="back-to-projects">
+                ← Back to Projects
+            </a>
+            <h1 class="project-title">BMS Project Workspace</h1>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+        </div>
+    </header>
 
     <div class="app-layout">
         <aside class="sidebar">
@@ -583,35 +880,36 @@
                 </div>
             </div>
             <div class="sidebar-footer">
-                <button id="add-panel-btn" class="btn btn-secondary">+ Add New Panel</button>
-                <button id="project-summary-btn" class="btn btn-primary" style="margin-top: 10px;">📊 Project Summary</button>
-                <a href="{{ url_for('logout') }}" class="btn btn-danger" style="margin-top: 10px;">Logout</a>
+                <button id="add-panel-btn" class="btn btn-secondary btn-block">+ Add New Panel</button>
+                <button id="project-summary-btn" class="btn btn-primary btn-block">📊 Project Summary</button>
             </div>
         </aside>
         <main class="main-content">
-            <div class="header">
-                <h1 id="main-header">Workspace</h1>
-                <div>
-                    <button id="manage-library-btn" class="btn-link">⚙️ Manage Equipment & Point Libraries</button>
-                    <button id="manage-parts-btn" class="btn-link">🔩 Manage Parts</button>
+            <div class="content-header">
+                <h1 id="main-header">🏗️ Workspace</h1>
+                <div class="content-header-actions">
+                    <button id="manage-library-btn" class="btn btn-link">⚙️ Manage Equipment & Point Libraries</button>
+                    <button id="manage-parts-btn" class="btn btn-link">🔩 Manage Parts</button>
                 </div>
             </div>
-            <div class="stage">
-                <h3 id="form-title">Add New Equipment</h3>
-                <form id="equipment-form">
-                    <input type="hidden" id="editing-id">
-                    <div class="form-row">
-                        <div class="form-group"><label for="panel-name">Panel Name</label><input type="text" id="panel-name" placeholder="Select a panel" required></div>
-                        <div class="form-group"><label for="floor-name">Floor</label><input type="text" id="floor-name" placeholder="Select a panel" required></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group" style="flex:3"><label for="instance-name">Equipment Instance Name</label><input type="text" id="instance-name" placeholder="e.g., AHU-01" required></div>
-                        <div class="form-group"><label for="quantity">Quantity</label><input type="number" id="quantity" value="1" min="1" required></div>
-                    </div>
-                    <div class="form-group"><label for="equipment-type">Equipment Type</label><select id="equipment-type" required><option value="">--- Select ---</option></select></div>
-                    <div id="point-configuration"><h4>Configure Points</h4><div id="checkbox-container" class="checkbox-group"></div></div>
-                    <div id="submit-button-container"><button type="submit" class="btn btn-primary">Add Equipment to Schedule</button></div>
-                </form>
+            <div class="content-body">
+                <div class="stage">
+                    <h3 id="form-title">Add New Equipment</h3>
+                    <form id="equipment-form">
+                        <input type="hidden" id="editing-id">
+                        <div class="form-row">
+                            <div class="form-group"><label for="panel-name">Panel Name</label><input type="text" id="panel-name" placeholder="Select a panel" required></div>
+                            <div class="form-group"><label for="floor-name">Floor</label><input type="text" id="floor-name" placeholder="Select a panel" required></div>
+                        </div>
+                        <div class="form-row triple">
+                            <div class="form-group"><label for="instance-name">Equipment Instance Name</label><input type="text" id="instance-name" placeholder="e.g., AHU-01" required></div>
+                            <div class="form-group"><label for="quantity">Quantity</label><input type="number" id="quantity" value="1" min="1" required></div>
+                        </div>
+                        <div class="form-group"><label for="equipment-type">Equipment Type</label><select id="equipment-type" required><option value="">--- Select ---</option></select></div>
+                        <div id="point-configuration"><h4>Configure Points</h4><div id="checkbox-container" class="checkbox-group"></div></div>
+                        <div id="submit-button-container"><button type="submit" class="btn btn-primary">Add Equipment to Schedule</button></div>
+                    </form>
+                </div>
             </div>
         </main>
     </div>
