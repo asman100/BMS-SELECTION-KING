@@ -266,6 +266,68 @@
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
+
+        .equipment-category {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .equipment-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .equipment-category-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .equipment-category-count {
+            background: var(--secondary-color);
+            color: var(--white);
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .equipment-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .equipment-item {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .equipment-item:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-1px);
+        }
+
+        .equipment-item-name {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .equipment-item-details {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -310,6 +372,16 @@
                             <span id="point-types-count" class="point-count">0</span>
                         </li>
                     </ul>
+                </div>
+            </div>
+
+            <div class="panels-section">
+                <div class="panels-header">
+                    <h2>Equipment Summary</h2>
+                    <p>Served equipment breakdown by category</p>
+                </div>
+                <div id="equipment-container">
+                    <!-- Equipment details will be populated here -->
                 </div>
             </div>
 
@@ -374,9 +446,49 @@
             // Update statistics
             document.getElementById('total-panels').textContent = data.panels.length;
             
-            // Calculate total equipment (this would need to be added to the API response)
-            document.getElementById('total-equipment').textContent = '-';
+            // Calculate total equipment count
+            const totalEquipment = Object.values(data.equipment_summary || {}).reduce((sum, category) => sum + category.count, 0);
+            document.getElementById('total-equipment').textContent = totalEquipment;
             document.getElementById('point-types-count').textContent = Object.keys(data.total_points).length;
+
+            // Display equipment summary
+            const equipmentContainer = document.getElementById('equipment-container');
+            equipmentContainer.innerHTML = '';
+
+            if (!data.equipment_summary || Object.keys(data.equipment_summary).length === 0) {
+                equipmentContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Equipment Configured</h3>
+                        <p>Add equipment to see the breakdown by category.</p>
+                    </div>
+                `;
+            } else {
+                Object.entries(data.equipment_summary).forEach(([category, categoryData]) => {
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.className = 'equipment-category';
+                    
+                    let equipmentListHtml = '';
+                    categoryData.equipment.forEach(equipment => {
+                        equipmentListHtml += `
+                            <div class="equipment-item">
+                                <div class="equipment-item-name">${equipment.name}</div>
+                                <div class="equipment-item-details">${equipment.type} (Qty: ${equipment.quantity})</div>
+                            </div>
+                        `;
+                    });
+
+                    categoryDiv.innerHTML = `
+                        <div class="equipment-category-header">
+                            <div class="equipment-category-name">${category}</div>
+                            <div class="equipment-category-count">${categoryData.count} units</div>
+                        </div>
+                        <div class="equipment-list">
+                            ${equipmentListHtml}
+                        </div>
+                    `;
+                    equipmentContainer.appendChild(categoryDiv);
+                });
+            }
 
             // Display panels
             const panelsContainer = document.getElementById('panels-container');
