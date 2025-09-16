@@ -286,7 +286,26 @@ def delete_user(user_id):
 @login_required
 def project_selection():
     projects = Project.query.filter_by(user_id=current_user.id).all()
-    return render_template('projects.html', projects=projects)
+    
+    # Add stats for each project
+    project_stats = []
+    for project in projects:
+        panels_count = Panel.query.filter_by(project_id=project.id).count()
+        equipment_count = ScheduledEquipment.query.filter_by(project_id=project.id).count()
+        
+        # Count total selected points across all equipment in the project
+        points_count = db.session.query(db.func.count(selected_points_association.c.point_template_id))\
+            .join(ScheduledEquipment, selected_points_association.c.scheduled_equipment_id == ScheduledEquipment.id)\
+            .filter(ScheduledEquipment.project_id == project.id).scalar() or 0
+        
+        project_stats.append({
+            'project': project,
+            'panels_count': panels_count,
+            'equipment_count': equipment_count,
+            'points_count': points_count
+        })
+    
+    return render_template('projects.html', project_stats=project_stats)
 
 @app.route('/projects/create', methods=['POST'])
 @login_required
