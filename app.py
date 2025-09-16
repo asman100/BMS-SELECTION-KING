@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
+import json
 from datetime import datetime
 
 # --- APP SETUP ---
@@ -154,9 +155,10 @@ class ControllerType(db.Model):
     di_capacity = db.Column(db.Integer, default=0)
     do_capacity = db.Column(db.Integer, default=0)
     ui_capacity = db.Column(db.Integer, default=0)  # Universal Inputs
+    uo_capacity = db.Column(db.Integer, default=0)  # Universal Outputs
+    uio_capacity = db.Column(db.Integer, default=0)  # Universal I/O
     cost = db.Column(db.Float, nullable=False)
     is_server = db.Column(db.Boolean, default=False)  # True for server controllers
-    max_points_total = db.Column(db.Integer, default=0)  # Maximum total points
 
     def to_dict(self):
         return {
@@ -168,34 +170,92 @@ class ControllerType(db.Model):
             "di_capacity": self.di_capacity,
             "do_capacity": self.do_capacity,
             "ui_capacity": self.ui_capacity,
+            "uo_capacity": self.uo_capacity,
+            "uio_capacity": self.uio_capacity,
             "cost": self.cost,
-            "is_server": self.is_server,
-            "max_points_total": self.max_points_total
+            "is_server": self.is_server
+        }
+
+class ServerModule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False, unique=True)
+    ai_capacity = db.Column(db.Integer, default=0)
+    ao_capacity = db.Column(db.Integer, default=0)
+    di_capacity = db.Column(db.Integer, default=0)
+    do_capacity = db.Column(db.Integer, default=0)
+    ui_capacity = db.Column(db.Integer, default=0)
+    uo_capacity = db.Column(db.Integer, default=0)
+    uio_capacity = db.Column(db.Integer, default=0)
+    cost = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part_number": self.part_number,
+            "ai_capacity": self.ai_capacity,
+            "ao_capacity": self.ao_capacity,
+            "di_capacity": self.di_capacity,
+            "do_capacity": self.do_capacity,
+            "ui_capacity": self.ui_capacity,
+            "uo_capacity": self.uo_capacity,
+            "uio_capacity": self.uio_capacity,
+            "cost": self.cost
+        }
+
+class Accessory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    parent_part_number = db.Column(db.String(120), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False)
+    cost = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "parent_part_number": self.parent_part_number,
+            "name": self.name,
+            "part_number": self.part_number,
+            "cost": self.cost
         }
 
 class ControllerSelection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     panel_id = db.Column(db.Integer, db.ForeignKey('panel.id'), nullable=False)
-    controller_type_id = db.Column(db.Integer, db.ForeignKey('controller_type.id'), nullable=False)
+    controller_type_id = db.Column(db.Integer, db.ForeignKey('controller_type.id'), nullable=True)
     quantity = db.Column(db.Integer, default=1)
     is_server_selection = db.Column(db.Boolean, default=False)  # User selected as server
     is_auto_optimized = db.Column(db.Boolean, default=False)  # Auto-optimized selection
+    
+    # Server solution tracking
+    server_modules = db.Column(db.Text)  # JSON string of selected modules for server panels
+    total_cost = db.Column(db.Float, default=0)  # Total cost including accessories
     
     controller_type = db.relationship('ControllerType')
     panel = db.relationship('Panel')
 
     def to_dict(self):
-        return {
+        result = {
             "id": self.id,
             "project_id": self.project_id,
             "panel_id": self.panel_id,
             "panel_name": self.panel.panel_name,
-            "controller_type": self.controller_type.to_dict(),
             "quantity": self.quantity,
             "is_server_selection": self.is_server_selection,
-            "is_auto_optimized": self.is_auto_optimized
+            "is_auto_optimized": self.is_auto_optimized,
+            "total_cost": self.total_cost or 0
         }
+        
+        if self.controller_type:
+            result["controller_type"] = self.controller_type.to_dict()
+        
+        if self.server_modules:
+            import json
+            result["server_modules"] = json.loads(self.server_modules)
+            
+        return result
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -946,12 +1006,16 @@ def get_controller_selection_data(project_id):
     existing_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
     selections = [sel.to_dict() for sel in existing_selections]
 
-    # Get all available controller types
-    controller_types = ControllerType.query.all()
+    # Get all available controller types and server modules
+    servers = ControllerType.query.filter_by(is_server=True).all()
+    controllers = ControllerType.query.filter_by(is_server=False).all()
+    server_modules = ServerModule.query.all()
     
     return jsonify({
         'panels': panel_data,
-        'controller_types': [ct.to_dict() for ct in controller_types],
+        'servers': [s.to_dict() for s in servers],
+        'controllers': [c.to_dict() for c in controllers],
+        'server_modules': [m.to_dict() for m in server_modules],
         'existing_selections': selections
     }), 200
 
@@ -965,21 +1029,31 @@ def optimize_controller_selection(project_id):
 
     data = request.get_json()
     server_panels = data.get('server_panels', [])  # List of panel IDs selected as servers
+    server_solutions = data.get('server_solutions', {})  # Selected server solution for each panel
     
-    # Clear existing auto-optimized selections
-    ControllerSelection.query.filter_by(project_id=project_id, is_auto_optimized=True).delete()
+    # Clear existing selections for this project
+    ControllerSelection.query.filter_by(project_id=project_id).delete()
     
-    # Mark server panels
+    # Handle server panels with selected solutions
     for panel_id in server_panels:
-        server_controller = ControllerType.query.filter_by(is_server=True).first()
-        if server_controller:
+        panel_id = int(panel_id)
+        if str(panel_id) in server_solutions:
+            solution = server_solutions[str(panel_id)]
+            server_type_id = solution.get('server_type_id')
+            selected_modules = solution.get('modules', [])
+            
+            # Calculate total cost including accessories
+            total_cost = calculate_server_solution_cost(server_type_id, selected_modules)
+            
             selection = ControllerSelection(
                 project_id=project_id,
                 panel_id=panel_id,
-                controller_type_id=server_controller.id,
+                controller_type_id=server_type_id,
                 quantity=1,
                 is_server_selection=True,
-                is_auto_optimized=False
+                is_auto_optimized=False,
+                server_modules=json.dumps(selected_modules),
+                total_cost=total_cost
             )
             db.session.add(selection)
 
@@ -989,18 +1063,21 @@ def optimize_controller_selection(project_id):
         ~Panel.id.in_(server_panels)
     ).all()
 
-    # Run optimization algorithm
+    # Run optimization algorithm for non-server panels
     optimization_result = run_controller_optimization(project_id, panels_to_optimize)
     
     # Save optimization results
     for panel_id, controller_selection in optimization_result.items():
+        total_cost = calculate_controller_cost_with_accessories(controller_selection['controller_type_id'])
+        
         selection = ControllerSelection(
             project_id=project_id,
             panel_id=panel_id,
             controller_type_id=controller_selection['controller_type_id'],
             quantity=controller_selection['quantity'],
             is_server_selection=False,
-            is_auto_optimized=True
+            is_auto_optimized=True,
+            total_cost=total_cost
         )
         db.session.add(selection)
 
@@ -1008,6 +1085,51 @@ def optimize_controller_selection(project_id):
     
     # Return updated selection data
     return get_controller_selection_data(project_id)
+
+def calculate_server_solution_cost(server_type_id, selected_modules):
+    """Calculate total cost for a server solution including modules and accessories."""
+    import json
+    
+    total_cost = 0
+    
+    # Add server cost
+    server = ControllerType.query.get(server_type_id)
+    if server:
+        total_cost += server.cost
+        
+        # Add server accessories
+        server_accessories = Accessory.query.filter_by(parent_part_number=server.part_number).all()
+        for accessory in server_accessories:
+            total_cost += accessory.cost
+    
+    # Add modules cost
+    for module_data in selected_modules:
+        module = ServerModule.query.get(module_data.get('id'))
+        if module:
+            quantity = module_data.get('quantity', 1)
+            total_cost += module.cost * quantity
+            
+            # Add module accessories
+            module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+            for accessory in module_accessories:
+                total_cost += accessory.cost * quantity
+    
+    return total_cost
+
+def calculate_controller_cost_with_accessories(controller_type_id):
+    """Calculate total cost for a controller including accessories."""
+    total_cost = 0
+    
+    controller = ControllerType.query.get(controller_type_id)
+    if controller:
+        total_cost += controller.cost
+        
+        # Add controller accessories
+        accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+        for accessory in accessories:
+            total_cost += accessory.cost
+    
+    return total_cost
 
 def run_controller_optimization(project_id, panels):
     """
@@ -1069,31 +1191,27 @@ def find_optimal_controller(point_requirements, controller_types):
     
     for controller in controller_types:
         # Check if controller can handle the requirements
+        # UIO points can be used for any purpose, so include them in capacity checks
         can_handle = (
-            controller.ai_capacity >= point_requirements['AI'] and
-            controller.ao_capacity >= point_requirements['AO'] and
-            controller.di_capacity >= point_requirements['DI'] and
-            controller.do_capacity >= point_requirements['DO'] and
-            controller.ui_capacity >= point_requirements['UI']
+            controller.ai_capacity + controller.uio_capacity >= point_requirements['AI'] and
+            controller.ao_capacity + controller.uio_capacity >= point_requirements['AO'] and
+            controller.di_capacity + controller.uio_capacity >= point_requirements['DI'] and
+            controller.do_capacity + controller.uio_capacity >= point_requirements['DO'] and
+            controller.ui_capacity + controller.uio_capacity >= point_requirements['UI']
         )
         
         if can_handle:
-            # Calculate total points needed
-            total_points = sum(point_requirements.values())
+            # Calculate quantity needed (for now assume 1, could be enhanced for multiple controllers)
+            quantity = 1
+            total_cost = calculate_controller_cost_with_accessories(controller.id) * quantity
             
-            # Check if total points are within controller limit
-            if controller.max_points_total == 0 or total_points <= controller.max_points_total:
-                # Calculate quantity needed (for now assume 1, could be enhanced)
-                quantity = 1
-                total_cost = controller.cost * quantity
-                
-                if total_cost < best_cost:
-                    best_cost = total_cost
-                    best_option = {
-                        'controller_id': controller.id,
-                        'quantity': quantity,
-                        'cost': total_cost
-                    }
+            if total_cost < best_cost:
+                best_cost = total_cost
+                best_option = {
+                    'controller_id': controller.id,
+                    'quantity': quantity,
+                    'cost': total_cost
+                }
     
     return best_option
 
@@ -1108,27 +1226,91 @@ def generate_controller_boq(project_id):
     # Get controller selections
     controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
     
-    # Generate controller BOQ
+    # Generate comprehensive BOQ with controllers, modules, and accessories
     controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
     total_controller_cost = 0
     
     for selection in controller_selections:
-        controller = selection.controller_type
-        part_num = controller.part_number
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'is_server': controller.is_server,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
         
-        if part_num not in controller_boq:
-            controller_boq[part_num] = {
-                'name': controller.name,
-                'part_number': part_num,
-                'quantity': 0,
-                'unit_cost': controller.cost,
-                'total_cost': 0,
-                'is_server': controller.is_server
-            }
-        
-        controller_boq[part_num]['quantity'] += selection.quantity
-        controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
-        total_controller_cost += selection.quantity * controller.cost
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
+                    
+                    # Add module accessories
+                    module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    for accessory in module_accessories:
+                        acc_part_num = accessory.part_number
+                        if acc_part_num not in accessory_boq:
+                            accessory_boq[acc_part_num] = {
+                                'name': accessory.name,
+                                'part_number': acc_part_num,
+                                'quantity': 0,
+                                'unit_cost': accessory.cost,
+                                'total_cost': 0,
+                                'category': 'Accessory'
+                            }
+                        
+                        accessory_boq[acc_part_num]['quantity'] += module_qty
+                        accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                        total_controller_cost += module_qty * accessory.cost
 
     # Generate field devices BOQ (from scheduled equipment)
     field_devices_boq = {}
@@ -1166,8 +1348,15 @@ def generate_controller_boq(project_id):
                 field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
                 total_field_cost += total_qty * (part.cost or 0)
 
+    # Combine all BOQ items
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
+
     return jsonify({
-        'controller_boq': list(controller_boq.values()),
+        'controller_boq': all_controller_items,
         'field_devices_boq': list(field_devices_boq.values()),
         'total_controller_cost': total_controller_cost,
         'total_field_cost': total_field_cost,
@@ -1312,57 +1501,8 @@ def setup_database(app):
             db.session.commit()
             print("Created default admin user: admin/admin123")
         
-        # Create default controller types if none exist
-        if ControllerType.query.count() == 0:
-            default_controllers = [
-                {
-                    'name': 'BACnet Server Controller',
-                    'part_number': 'SRV-BAC-01',
-                    'ai_capacity': 0, 'ao_capacity': 0, 'di_capacity': 0, 'do_capacity': 0, 'ui_capacity': 0,
-                    'cost': 2500.0,
-                    'is_server': True,
-                    'max_points_total': 0
-                },
-                {
-                    'name': 'Universal Controller 32 Points',
-                    'part_number': 'UC-32',
-                    'ai_capacity': 16, 'ao_capacity': 8, 'di_capacity': 16, 'do_capacity': 8, 'ui_capacity': 8,
-                    'cost': 850.0,
-                    'is_server': False,
-                    'max_points_total': 32
-                },
-                {
-                    'name': 'Universal Controller 64 Points',
-                    'part_number': 'UC-64',
-                    'ai_capacity': 32, 'ao_capacity': 16, 'di_capacity': 32, 'do_capacity': 16, 'ui_capacity': 16,
-                    'cost': 1450.0,
-                    'is_server': False,
-                    'max_points_total': 64
-                },
-                {
-                    'name': 'I/O Controller 24 Points',
-                    'part_number': 'IO-24',
-                    'ai_capacity': 8, 'ao_capacity': 4, 'di_capacity': 12, 'do_capacity': 8, 'ui_capacity': 4,
-                    'cost': 650.0,
-                    'is_server': False,
-                    'max_points_total': 24
-                },
-                {
-                    'name': 'Advanced Controller 128 Points',
-                    'part_number': 'ADV-128',
-                    'ai_capacity': 64, 'ao_capacity': 32, 'di_capacity': 64, 'do_capacity': 32, 'ui_capacity': 32,
-                    'cost': 2200.0,
-                    'is_server': False,
-                    'max_points_total': 128
-                }
-            ]
-            
-            for controller_data in default_controllers:
-                controller = ControllerType(**controller_data)
-                db.session.add(controller)
-            
-            db.session.commit()
-            print("Created default controller types")
+        # Load controller types from CSV files
+        load_csv_data()
         
         # Deduplicate global parts on first run after migration (keep lowest id)
         from sqlalchemy import func
@@ -1391,6 +1531,95 @@ def setup_database(app):
         except Exception as e:
             # Log and continue; non-fatal if cleanup fails
             print(f"Warning: failed to deduplicate selected_points table: {e}")
+
+def load_csv_data():
+    """Load controller data from CSV files."""
+    import csv
+    import os
+    
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    
+    # Load servers (automation servers)
+    servers_file = os.path.join(basedir, 'servers.csv')
+    if os.path.exists(servers_file) and ControllerType.query.filter_by(is_server=True).count() == 0:
+        with open(servers_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                server = ControllerType(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost']),
+                    is_server=True
+                )
+                db.session.add(server)
+        print("Loaded automation servers from CSV")
+    
+    # Load controllers
+    controllers_file = os.path.join(basedir, 'controllers.csv')
+    if os.path.exists(controllers_file) and ControllerType.query.filter_by(is_server=False).count() == 0:
+        with open(controllers_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                controller = ControllerType(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost']),
+                    is_server=False
+                )
+                db.session.add(controller)
+        print("Loaded controllers from CSV")
+    
+    # Load server modules
+    modules_file = os.path.join(basedir, 'server_modules.csv')
+    if os.path.exists(modules_file) and ServerModule.query.count() == 0:
+        with open(modules_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                module = ServerModule(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost'])
+                )
+                db.session.add(module)
+        print("Loaded server modules from CSV")
+    
+    # Load accessories
+    accessories_file = os.path.join(basedir, 'accessories.csv')
+    if os.path.exists(accessories_file) and Accessory.query.count() == 0:
+        with open(accessories_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                accessory = Accessory(
+                    parent_part_number=row['ParentPartNumber'],
+                    name=row['AccessoryName'],
+                    part_number=row['AccessoryPartNumber'],
+                    cost=float(row['AccessoryCost'])
+                )
+                db.session.add(accessory)
+        print("Loaded accessories from CSV")
+    
+    db.session.commit()
 
 if __name__ == '__main__':
     setup_database(app)

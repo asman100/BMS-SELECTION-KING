@@ -375,11 +375,33 @@
 
                 <div class="selection-card">
                     <div class="card-header">
+                        <div class="card-icon">🖥️</div>
+                        <div class="card-title">Available Servers</div>
+                    </div>
+                    <div id="servers-container">
+                        <!-- Server types will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="selection-grid">
+                <div class="selection-card">
+                    <div class="card-header">
                         <div class="card-icon">🎛️</div>
                         <div class="card-title">Available Controllers</div>
                     </div>
-                    <div id="controller-types-container">
+                    <div id="controllers-container">
                         <!-- Controller types will be populated here -->
+                    </div>
+                </div>
+
+                <div class="selection-card" id="server-solution-card" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-icon">⚙️</div>
+                        <div class="card-title">Server Solution Configuration</div>
+                    </div>
+                    <div id="server-solution-container">
+                        <!-- Server solution configuration will be populated here -->
                     </div>
                 </div>
             </div>
@@ -403,12 +425,13 @@
                     <div class="card-title">Bill of Quantities (BOQ)</div>
                 </div>
                 
-                <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Controllers</h3>
+                <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Controllers & Accessories</h3>
                 <table id="controller-boq-table" class="boq-table">
                     <thead>
                         <tr>
                             <th>Part Number</th>
                             <th>Description</th>
+                            <th>Category</th>
                             <th>Quantity</th>
                             <th>Unit Cost</th>
                             <th>Total Cost</th>
@@ -456,8 +479,11 @@
     <script>
         const projectId = {{ project_id }};
         let panelData = [];
-        let controllerTypes = [];
+        let servers = [];
+        let controllers = [];
+        let serverModules = [];
         let selectedServerPanels = new Set();
+        let serverSolutions = {}; // Store selected server solutions for each panel
         let optimizationResults = null;
         let boqData = null;
 
@@ -471,10 +497,13 @@
                 }
 
                 panelData = data.panels;
-                controllerTypes = data.controller_types;
+                servers = data.servers;
+                controllers = data.controllers;
+                serverModules = data.server_modules;
 
                 displayPanels();
-                displayControllerTypes();
+                displayServers();
+                displayControllers();
 
                 // Hide loading and show content
                 document.getElementById('loading').style.display = 'none';
@@ -522,16 +551,52 @@
             });
         }
 
-        function displayControllerTypes() {
-            const container = document.getElementById('controller-types-container');
+        function displayServers() {
+            const container = document.getElementById('servers-container');
             container.innerHTML = '';
 
-            if (controllerTypes.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>No controller types available.</p></div>';
+            if (servers.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No automation servers available.</p></div>';
                 return;
             }
 
-            controllerTypes.forEach(controller => {
+            servers.forEach(server => {
+                const serverDiv = document.createElement('div');
+                serverDiv.className = 'panel-item';
+
+                const capacityInfo = [
+                    `AI: ${server.ai_capacity}`,
+                    `AO: ${server.ao_capacity}`,
+                    `DI: ${server.di_capacity}`,
+                    `DO: ${server.do_capacity}`,
+                    `UIO: ${server.uio_capacity}`
+                ].join(', ');
+
+                serverDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${server.name}</div>
+                        <div class="panel-floor">${server.part_number}</div>
+                        <div class="panel-points">
+                            <span class="point-badge">${capacityInfo}</span>
+                            <span class="point-badge">$${server.cost.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(serverDiv);
+            });
+        }
+
+        function displayControllers() {
+            const container = document.getElementById('controllers-container');
+            container.innerHTML = '';
+
+            if (controllers.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No controllers available.</p></div>';
+                return;
+            }
+
+            controllers.forEach(controller => {
                 const controllerDiv = document.createElement('div');
                 controllerDiv.className = 'panel-item';
 
@@ -539,16 +604,17 @@
                     `AI: ${controller.ai_capacity}`,
                     `AO: ${controller.ao_capacity}`,
                     `DI: ${controller.di_capacity}`,
-                    `DO: ${controller.do_capacity}`
+                    `DO: ${controller.do_capacity}`,
+                    `UIO: ${controller.uio_capacity}`
                 ].join(', ');
 
                 controllerDiv.innerHTML = `
                     <div class="panel-info">
-                        <div class="panel-name">${controller.name} ${controller.is_server ? '(Server)' : ''}</div>
+                        <div class="panel-name">${controller.name}</div>
                         <div class="panel-floor">${controller.part_number}</div>
                         <div class="panel-points">
                             <span class="point-badge">${capacityInfo}</span>
-                            <span class="point-badge">$${controller.cost}</span>
+                            <span class="point-badge">$${controller.cost.toFixed(2)}</span>
                         </div>
                     </div>
                 `;
@@ -564,14 +630,198 @@
             if (checkbox.checked) {
                 selectedServerPanels.add(panelId);
                 panelDiv.classList.add('server-selected');
+                showServerSolutionSelection();
             } else {
                 selectedServerPanels.delete(panelId);
                 panelDiv.classList.remove('server-selected');
+                delete serverSolutions[panelId];
+                if (selectedServerPanels.size === 0) {
+                    hideServerSolutionSelection();
+                }
             }
+            updateServerSolutionDisplay();
+        }
+
+        function showServerSolutionSelection() {
+            document.getElementById('server-solution-card').style.display = 'block';
+        }
+
+        function hideServerSolutionSelection() {
+            document.getElementById('server-solution-card').style.display = 'none';
+        }
+
+        function updateServerSolutionDisplay() {
+            const container = document.getElementById('server-solution-container');
+            container.innerHTML = '';
+
+            if (selectedServerPanels.size === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Select server panels to configure solutions.</p></div>';
+                return;
+            }
+
+            selectedServerPanels.forEach(panelId => {
+                const panel = panelData.find(p => p.id === panelId);
+                if (!panel) return;
+
+                const solutionDiv = document.createElement('div');
+                solutionDiv.className = 'panel-item';
+                solutionDiv.style.marginBottom = '1rem';
+
+                let pointsHtml = '';
+                Object.entries(panel.points).forEach(([type, count]) => {
+                    pointsHtml += `<span class="point-badge">${type}: ${count}</span>`;
+                });
+
+                solutionDiv.innerHTML = `
+                    <div style="margin-bottom: 1rem;">
+                        <h4>${panel.name} - ${panel.floor}</h4>
+                        <div class="panel-points">${pointsHtml}</div>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="server-select-${panelId}">Select Server Type:</label>
+                        <select id="server-select-${panelId}" onchange="updateServerSelection(${panelId})" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
+                            <option value="">Choose a server...</option>
+                            ${servers.map(server => 
+                                `<option value="${server.id}">${server.name} - $${server.cost.toFixed(2)}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div id="modules-${panelId}" style="display: none;">
+                        <h5>Server Modules (optional):</h5>
+                        <div id="modules-list-${panelId}"></div>
+                        <div style="margin-top: 1rem;">
+                            <strong>Estimated Total Cost: $<span id="cost-${panelId}">0.00</span></strong>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(solutionDiv);
+            });
+        }
+
+        function updateServerSelection(panelId) {
+            const select = document.getElementById(`server-select-${panelId}`);
+            const serverId = select.value;
+            
+            if (!serverId) {
+                document.getElementById(`modules-${panelId}`).style.display = 'none';
+                delete serverSolutions[panelId];
+                return;
+            }
+
+            // Initialize server solution
+            if (!serverSolutions[panelId]) {
+                serverSolutions[panelId] = {
+                    server_type_id: parseInt(serverId),
+                    modules: []
+                };
+            } else {
+                serverSolutions[panelId].server_type_id = parseInt(serverId);
+                serverSolutions[panelId].modules = []; // Reset modules when server changes
+            }
+
+            // Show modules section
+            document.getElementById(`modules-${panelId}`).style.display = 'block';
+            displayServerModules(panelId);
+            updateServerCost(panelId);
+        }
+
+        function displayServerModules(panelId) {
+            const container = document.getElementById(`modules-list-${panelId}`);
+            container.innerHTML = '';
+
+            if (serverModules.length === 0) {
+                container.innerHTML = '<p>No server modules available.</p>';
+                return;
+            }
+
+            serverModules.forEach(module => {
+                const moduleDiv = document.createElement('div');
+                moduleDiv.className = 'panel-item';
+                moduleDiv.style.marginBottom = '0.5rem';
+
+                const capacityInfo = [
+                    `AI: ${module.ai_capacity}`,
+                    `AO: ${module.ao_capacity}`,
+                    `DI: ${module.di_capacity}`,
+                    `DO: ${module.do_capacity}`,
+                    `UIO: ${module.uio_capacity}`
+                ].join(', ');
+
+                moduleDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${module.name}</div>
+                        <div class="panel-floor">${module.part_number} - $${module.cost.toFixed(2)}</div>
+                        <div class="panel-points">
+                            <span class="point-badge">${capacityInfo}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label for="qty-${panelId}-${module.id}">Qty:</label>
+                        <input type="number" id="qty-${panelId}-${module.id}" 
+                               min="0" max="10" value="0" 
+                               onchange="updateModuleQuantity(${panelId}, ${module.id})"
+                               style="width: 60px; padding: 0.25rem;">
+                    </div>
+                `;
+
+                container.appendChild(moduleDiv);
+            });
+        }
+
+        function updateModuleQuantity(panelId, moduleId) {
+            const qtyInput = document.getElementById(`qty-${panelId}-${moduleId}`);
+            const quantity = parseInt(qtyInput.value) || 0;
+
+            if (!serverSolutions[panelId]) return;
+
+            // Remove existing module entry
+            serverSolutions[panelId].modules = serverSolutions[panelId].modules.filter(m => m.id !== moduleId);
+
+            // Add new entry if quantity > 0
+            if (quantity > 0) {
+                serverSolutions[panelId].modules.push({
+                    id: moduleId,
+                    quantity: quantity
+                });
+            }
+
+            updateServerCost(panelId);
+        }
+
+        function updateServerCost(panelId) {
+            const costSpan = document.getElementById(`cost-${panelId}`);
+            if (!costSpan || !serverSolutions[panelId]) return;
+
+            let totalCost = 0;
+
+            // Add server cost
+            const server = servers.find(s => s.id === serverSolutions[panelId].server_type_id);
+            if (server) {
+                totalCost += server.cost;
+            }
+
+            // Add modules cost
+            serverSolutions[panelId].modules.forEach(moduleData => {
+                const module = serverModules.find(m => m.id === moduleData.id);
+                if (module) {
+                    totalCost += module.cost * moduleData.quantity;
+                }
+            });
+
+            costSpan.textContent = totalCost.toFixed(2);
         }
 
         async function optimizeControllers() {
             try {
+                // Validate that all server panels have solutions configured
+                for (let panelId of selectedServerPanels) {
+                    if (!serverSolutions[panelId] || !serverSolutions[panelId].server_type_id) {
+                        showNotification('Please configure server solutions for all selected server panels before optimizing.', 'warning');
+                        return;
+                    }
+                }
+
                 showNotification('Optimizing controller selection...', 'success');
 
                 const response = await fetch(`/api/projects/${projectId}/controller_selection/optimize`, {
@@ -580,7 +830,8 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        server_panels: Array.from(selectedServerPanels)
+                        server_panels: Array.from(selectedServerPanels),
+                        server_solutions: serverSolutions
                     })
                 });
 
@@ -615,24 +866,36 @@
                 const resultDiv = document.createElement('div');
                 resultDiv.className = `result-item ${result.is_server_selection ? 'server' : 'optimized'}`;
 
-                const cost = result.controller_type.cost * result.quantity;
+                const cost = result.total_cost || 0;
                 totalCost += cost;
 
-                const capacityInfo = [
-                    `AI: ${result.controller_type.ai_capacity}`,
-                    `AO: ${result.controller_type.ao_capacity}`,
-                    `DI: ${result.controller_type.di_capacity}`,
-                    `DO: ${result.controller_type.do_capacity}`
-                ].join(', ');
+                let detailsHtml = '';
+                if (result.controller_type) {
+                    const capacityInfo = [
+                        `AI: ${result.controller_type.ai_capacity}`,
+                        `AO: ${result.controller_type.ao_capacity}`,
+                        `DI: ${result.controller_type.di_capacity}`,
+                        `DO: ${result.controller_type.do_capacity}`,
+                        `UIO: ${result.controller_type.uio_capacity}`
+                    ].join(', ');
+
+                    detailsHtml = `${result.controller_type.part_number} | ${capacityInfo} | Qty: ${result.quantity}`;
+                    
+                    if (result.server_modules && result.server_modules.length > 0) {
+                        detailsHtml += ` | Modules: ${result.server_modules.map(m => `${m.quantity}x Module`).join(', ')}`;
+                    }
+                } else {
+                    detailsHtml = 'Server solution configured';
+                }
 
                 resultDiv.innerHTML = `
                     <div class="controller-info">
                         <div class="controller-name">
-                            ${result.panel_name} - ${result.controller_type.name}
+                            ${result.panel_name} - ${result.controller_type ? result.controller_type.name : 'Server Solution'}
                             ${result.is_server_selection ? ' (Server)' : ' (Auto-optimized)'}
                         </div>
                         <div class="controller-details">
-                            ${result.controller_type.part_number} | ${capacityInfo} | Qty: ${result.quantity}
+                            ${detailsHtml}
                         </div>
                     </div>
                     <div class="cost-info">
@@ -679,7 +942,7 @@
         function displayBOQ() {
             if (!boqData) return;
 
-            // Display controller BOQ
+            // Display controller BOQ (now includes servers, controllers, modules, and accessories)
             const controllerBody = document.getElementById('controller-boq-body');
             controllerBody.innerHTML = '';
 
@@ -688,6 +951,7 @@
                 row.innerHTML = `
                     <td>${item.part_number}</td>
                     <td>${item.name}</td>
+                    <td>${item.category || 'Controller'}</td>
                     <td>${item.quantity}</td>
                     <td>$${item.unit_cost.toFixed(2)}</td>
                     <td>$${item.total_cost.toFixed(2)}</td>
