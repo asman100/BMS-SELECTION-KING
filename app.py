@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
+from datetime import datetime
 
 # --- APP SETUP ---
 app = Flask(__name__)
@@ -24,6 +25,9 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
+    is_approved = db.Column(db.Boolean, nullable=False, default=False)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
     projects = db.relationship('Project', backref='owner', lazy=True)
 
 class Project(db.Model):
@@ -153,6 +157,8 @@ def login():
         data = request.get_json()
         user = User.query.filter_by(username=data['username']).first()
         if user and bcrypt.check_password_hash(user.password, data['password']):
+            if not user.is_approved:
+                return jsonify({"success": False, "error": "Your account is pending approval. Please contact an administrator."}), 401
             login_user(user)
             return jsonify({"success": True, "redirect": url_for('project_selection')})
         else:
@@ -165,12 +171,22 @@ def register():
         return redirect(url_for('project_selection'))
     if request.method == 'POST':
         data = request.get_json()
-        hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
-        user = User(username=data['username'], password=hashed_password)
-        db.session.add(user)
-        db.session.commit()
-        flash('Your account has been created! You are now able to log in', 'success')
-        return jsonify({"success": True, "redirect": url_for('login')})
+        
+        # Check if user already exists
+        existing_user = User.query.filter_by(username=data['username']).first()
+        if existing_user:
+            return jsonify({"success": False, "error": "Username already exists"}), 400
+            
+        try:
+            hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+            user = User(username=data['username'], password=hashed_password, is_approved=False)
+            db.session.add(user)
+            db.session.commit()
+            flash('Your account has been created and is pending approval. You will be notified when you can log in.', 'success')
+            return jsonify({"success": True, "redirect": url_for('login')})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "error": "Registration failed"}), 500
     return render_template('register.html')
 
 @app.route("/logout")
@@ -178,6 +194,91 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+# --- ADMIN ROUTES ---
+
+def admin_required(f):
+    """Decorator to require admin privileges"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash("Admin access required.", "danger")
+            return redirect(url_for('project_selection'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    users = User.query.order_by(User.created_at.desc()).all()
+    pending_users = User.query.filter_by(is_approved=False).count()
+    total_users = User.query.count()
+    total_projects = Project.query.count()
+    
+    stats = {
+        'total_users': total_users,
+        'pending_users': pending_users,
+        'approved_users': total_users - pending_users,
+        'total_projects': total_projects
+    }
+    
+    return render_template('admin.html', users=users, stats=stats)
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@login_required
+@admin_required
+def approve_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_approved = True
+    db.session.commit()
+    flash(f'User {user.username} has been approved.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
+@login_required
+@admin_required
+def toggle_user_admin(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot modify your own admin status.", "danger")
+        return redirect(url_for('admin_dashboard'))
+    
+    user.is_admin = not user.is_admin
+    db.session.commit()
+    
+    action = "granted" if user.is_admin else "revoked"
+    flash(f'Admin privileges {action} for user {user.username}.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot delete your own account.", "danger")
+        return redirect(url_for('admin_dashboard'))
+    
+    data = request.get_json() or {}
+    if data.get('confirmUsername') != user.username:
+        return jsonify({"error": "Username confirmation mismatch"}), 400
+    
+    # Delete user's projects first
+    for project in user.projects:
+        # Delete project data as in the existing delete_project route
+        ScheduledEquipment.query.filter_by(project_id=project.id).delete(synchronize_session=False)
+        for panel in Panel.query.filter_by(project_id=project.id).all():
+            db.session.delete(panel)
+        db.session.delete(project)
+    
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'User {username} and all associated data has been deleted.', 'success')
+    return jsonify({"success": True})
 
 # --- PROJECT ROUTES ---
 
@@ -278,6 +379,66 @@ def panel_point_summary(panel_id):
                     summary[sp.point_type] = summary.get(sp.point_type, 0) + point_repeat
 
     return jsonify(summary), 200
+
+@app.route('/api/project/<int:project_id>/summary', methods=['GET'])
+@login_required
+def project_summary(project_id):
+    """Get cumulative I/O point summary for all panels in a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    panels = Panel.query.filter_by(project_id=project_id).all()
+    project_summary = {
+        'project_name': project.name,
+        'total_points': {},
+        'panels': []
+    }
+    
+    total_summary = {}
+    
+    for panel in panels:
+        panel_summary = {}
+        equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel.id).all()
+        
+        for equip in equipments:
+            equip_qty = equip.quantity or 1
+            template = equip.equipment_template
+            selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+            for pt in selected_points:
+                etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+                sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+                if not sub_points:
+                    panel_summary['UNKNOWN'] = panel_summary.get('UNKNOWN', 0) + point_repeat
+                    total_summary['UNKNOWN'] = total_summary.get('UNKNOWN', 0) + point_repeat
+                else:
+                    for sp in sub_points:
+                        panel_summary[sp.point_type] = panel_summary.get(sp.point_type, 0) + point_repeat
+                        total_summary[sp.point_type] = total_summary.get(sp.point_type, 0) + point_repeat
+        
+        project_summary['panels'].append({
+            'id': panel.id,
+            'name': panel.panel_name,
+            'floor': panel.floor,
+            'points': panel_summary
+        })
+    
+    project_summary['total_points'] = total_summary
+    return jsonify(project_summary), 200
+
+@app.route('/summary/<int:project_id>')
+@login_required
+def summary_page(project_id):
+    """Render the project summary page."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('summary.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):
@@ -590,22 +751,95 @@ def list_point_templates():
 
 # --- SOCKET.IO ---
 
+# Store active users per project
+active_users = {}
+
 @socketio.on('join')
 def on_join(data):
     room = data['project_id']
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
     join_room(room)
+    
+    # Track active users
+    if room not in active_users:
+        active_users[room] = set()
+    active_users[room].add(username)
+    
+    # Notify others that user joined
+    emit('user_joined', {
+        'username': username,
+        'message': f'{username} joined the project',
+        'active_users': list(active_users[room])
+    }, room=room, include_self=False)
+    
+    # Send current active users to the user who just joined
+    emit('active_users_update', {'active_users': list(active_users[room])})
 
 @socketio.on('leave')
 def on_leave(data):
     room = data['project_id']
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
     leave_room(room)
+    
+    # Remove from active users
+    if room in active_users:
+        active_users[room].discard(username)
+        if len(active_users[room]) == 0:
+            del active_users[room]
+        else:
+            # Notify others that user left
+            emit('user_left', {
+                'username': username,
+                'message': f'{username} left the project',
+                'active_users': list(active_users[room])
+            }, room=room)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
+    # Remove user from all rooms
+    for room in list(active_users.keys()):
+        if username in active_users[room]:
+            active_users[room].discard(username)
+            if len(active_users[room]) == 0:
+                del active_users[room]
+            else:
+                emit('user_left', {
+                    'username': username,
+                    'message': f'{username} disconnected',
+                    'active_users': list(active_users[room])
+                }, room=room)
+
+@socketio.on('user_action')
+def on_user_action(data):
+    """Handle real-time user actions like editing, adding equipment, etc."""
+    room = data.get('project_id')
+    username = current_user.username if current_user.is_authenticated else 'Anonymous'
+    action_type = data.get('action_type')
+    action_data = data.get('data', {})
+    
+    # Broadcast action to other users in the room
+    emit('real_time_action', {
+        'username': username,
+        'action_type': action_type,
+        'data': action_data,
+        'timestamp': data.get('timestamp')
+    }, room=room, include_self=False)
 
 def broadcast_update(project_id):
-    socketio.emit('update', {'project_id': project_id}, room=project_id)
+    """Enhanced broadcast with user action info"""
+    socketio.emit('update', {
+        'project_id': project_id,
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'updated_by': current_user.username if current_user.is_authenticated else 'System'
+    }, room=project_id)
 
 def broadcast_global_catalog():
     """Emit event notifying clients that global catalogs (templates/points/parts) changed."""
-    socketio.emit('global_catalog_update', {})
+    socketio.emit('global_catalog_update', {
+        'updated_by': current_user.username if current_user.is_authenticated else 'System',
+        'timestamp': datetime.utcnow().isoformat() + 'Z'
+    })
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])
 @login_required
@@ -639,6 +873,20 @@ def delete_project(project_id):
 def setup_database(app):
     with app.app_context():
         db.create_all()
+        
+        # Create default admin user if no users exist
+        if User.query.count() == 0:
+            admin_password = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin_user = User(
+                username='admin',
+                password=admin_password,
+                is_approved=True,
+                is_admin=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Created default admin user: admin/admin123")
+        
         # Deduplicate global parts on first run after migration (keep lowest id)
         from sqlalchemy import func
         dups = (db.session.query(Part.part_number, func.count(Part.id))
@@ -669,4 +917,4 @@ def setup_database(app):
 
 if __name__ == '__main__':
     setup_database(app)
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, port=5001)

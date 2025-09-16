@@ -5,53 +5,505 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - BMS Tool</title>
     <style>
-        /* Add some basic styling */
-        body { font-family: sans-serif; }
-        .container { width: 300px; margin: 0 auto; padding-top: 100px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; }
-        input { width: 100%; padding: 8px; }
-        .btn { padding: 10px 15px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --danger-color: #e53e3e;
+            --warning-color: #d69e2e;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, var(--success-color), var(--secondary-color));
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .register-container {
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 3rem;
+            width: 100%;
+            max-width: 450px;
+            transition: all 0.3s ease;
+        }
+
+        .register-container:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-5px);
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--success-color), var(--secondary-color));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: var(--white);
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .logo-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .logo-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .form-header h2 {
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: var(--white);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--success-color);
+            box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .password-strength {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .strength-indicator {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        .strength-bar {
+            height: 4px;
+            flex: 1;
+            background: var(--border-color);
+            border-radius: 2px;
+            transition: background 0.3s ease;
+        }
+
+        .strength-bar.active {
+            background: var(--success-color);
+        }
+
+        .strength-bar.medium {
+            background: var(--warning-color);
+        }
+
+        .strength-bar.weak {
+            background: var(--danger-color);
+        }
+
+        .strength-text {
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .requirements {
+            list-style: none;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .requirements li {
+            color: var(--text-secondary);
+            margin: 0.25rem 0;
+            padding-left: 1.2rem;
+            position: relative;
+        }
+
+        .requirements li:before {
+            content: "✗";
+            position: absolute;
+            left: 0;
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        .requirements li.valid:before {
+            content: "✓";
+            color: var(--success-color);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--success-color), var(--secondary-color));
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(72, 187, 120, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .auth-link p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .auth-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .auth-link a:hover {
+            color: var(--secondary-color);
+            text-decoration: underline;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .loading .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--success-color);
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message, .success-message {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: var(--danger-color);
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: var(--success-color);
+        }
+
+        @media (max-width: 480px) {
+            .register-container {
+                margin: 1rem;
+                padding: 2rem;
+            }
+            
+            .logo {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+            }
+            
+            .logo-title {
+                font-size: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Register</h2>
+    <div class="register-container">
+        <div class="logo-section">
+            <div class="logo">BMS</div>
+            <div class="logo-title">Join BMS Selection</div>
+            <div class="logo-subtitle">Create your account to get started</div>
+        </div>
+
+        <div class="form-header">
+            <h2>Create Account</h2>
+            <p>Join our platform to manage your BMS projects</p>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+
         <form id="register-form">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" required>
+                <input type="text" id="username" required autocomplete="username" placeholder="Choose a unique username" minlength="3">
             </div>
+            
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" required>
+                <input type="password" id="password" required autocomplete="new-password" placeholder="Create a strong password" minlength="6">
+                <div class="password-strength">
+                    <div class="strength-indicator">
+                        <div class="strength-bar" id="bar1"></div>
+                        <div class="strength-bar" id="bar2"></div>
+                        <div class="strength-bar" id="bar3"></div>
+                        <div class="strength-bar" id="bar4"></div>
+                    </div>
+                    <div class="strength-text" id="strength-text">Password strength</div>
+                </div>
+                <ul class="requirements">
+                    <li id="req-length">At least 6 characters</li>
+                    <li id="req-uppercase">One uppercase letter</li>
+                    <li id="req-lowercase">One lowercase letter</li>
+                    <li id="req-number">One number</li>
+                </ul>
             </div>
-            <button type="submit" class="btn">Register</button>
+            
+            <button type="submit" class="btn" id="register-btn">
+                Create Account
+            </button>
         </form>
-        <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a>.</p>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>Creating your account...</span>
+        </div>
+
+        <div class="auth-link">
+            <p>Already have an account? <a href="{{ url_for('login') }}">Sign in here</a></p>
+        </div>
     </div>
 
     <script>
-        document.getElementById("register-form").addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const username = document.getElementById("username").value;
-            const password = document.getElementById("password").value;
+        const form = document.getElementById("register-form");
+        const registerBtn = document.getElementById("register-btn");
+        const loading = document.getElementById("loading");
+        const errorMessage = document.getElementById("error-message");
+        const successMessage = document.getElementById("success-message");
+        const passwordInput = document.getElementById("password");
+        const usernameInput = document.getElementById("username");
 
-            const response = await fetch("{{ url_for('register') }}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ username, password })
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                registerBtn.disabled = true;
+                registerBtn.style.display = 'none';
+                loading.style.display = 'block';
+            } else {
+                registerBtn.disabled = false;
+                registerBtn.style.display = 'block';
+                loading.style.display = 'none';
+            }
+        }
+
+        function checkPasswordStrength(password) {
+            const requirements = {
+                length: password.length >= 6,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                number: /\d/.test(password)
+            };
+
+            // Update requirement indicators
+            document.getElementById('req-length').classList.toggle('valid', requirements.length);
+            document.getElementById('req-uppercase').classList.toggle('valid', requirements.uppercase);
+            document.getElementById('req-lowercase').classList.toggle('valid', requirements.lowercase);
+            document.getElementById('req-number').classList.toggle('valid', requirements.number);
+
+            // Calculate strength
+            const validCount = Object.values(requirements).filter(Boolean).length;
+            const bars = [
+                document.getElementById('bar1'),
+                document.getElementById('bar2'),
+                document.getElementById('bar3'),
+                document.getElementById('bar4')
+            ];
+
+            // Reset bars
+            bars.forEach(bar => {
+                bar.className = 'strength-bar';
             });
 
-            const data = await response.json();
-            if (data.success) {
-                window.location.href = data.redirect;
+            let strengthText = '';
+            let strengthClass = '';
+
+            if (validCount === 0) {
+                strengthText = 'Password strength';
+            } else if (validCount <= 2) {
+                strengthText = 'Weak password';
+                strengthClass = 'weak';
+                bars[0].classList.add('active', 'weak');
+            } else if (validCount === 3) {
+                strengthText = 'Medium password';
+                strengthClass = 'medium';
+                bars[0].classList.add('active', 'medium');
+                bars[1].classList.add('active', 'medium');
             } else {
-                alert(data.error);
+                strengthText = 'Strong password';
+                strengthClass = 'active';
+                bars.forEach(bar => bar.classList.add('active'));
+            }
+
+            document.getElementById('strength-text').textContent = strengthText;
+            return validCount >= 3; // Require at least medium strength
+        }
+
+        passwordInput.addEventListener('input', (e) => {
+            checkPasswordStrength(e.target.value);
+            hideMessages();
+        });
+
+        usernameInput.addEventListener('input', hideMessages);
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            hideMessages();
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            // Client-side validation
+            if (username.length < 3) {
+                showError("Username must be at least 3 characters long.");
+                return;
+            }
+
+            if (!checkPasswordStrength(password)) {
+                showError("Please choose a stronger password that meets the requirements.");
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch("{{ url_for('register') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess("Account created successfully! Redirecting to login...");
+                    registerBtn.innerHTML = "✓ Account Created!";
+                    registerBtn.style.background = "var(--success-color)";
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 2000);
+                } else {
+                    showError(data.error || "Registration failed. Please try again.");
+                    setLoading(false);
+                }
+            } catch (error) {
+                showError("Network error. Please check your connection and try again.");
+                setLoading(false);
             }
         });
+
+        // Focus management
+        usernameInput.focus();
     </script>
 </body>
 </html>

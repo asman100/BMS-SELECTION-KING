@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - BMS Tool</title>
+    <style>
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --danger-color: #e53e3e;
+            --warning-color: #d69e2e;
+            --info-color: #3182ce;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 8px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--danger-color), #c53030);
+            color: var(--white);
+            padding: 1.5rem 0;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--white);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--white);
+        }
+
+        .stat-icon.users { background: var(--info-color); }
+        .stat-icon.pending { background: var(--warning-color); }
+        .stat-icon.approved { background: var(--success-color); }
+        .stat-icon.projects { background: var(--primary-color); }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .users-section {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th,
+        .users-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .users-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .users-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .status-approved {
+            background: #c6f6d5;
+            color: var(--success-color);
+        }
+
+        .status-pending {
+            background: #fef5e7;
+            color: var(--warning-color);
+        }
+
+        .role-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        .role-admin {
+            background: #fed7d7;
+            color: var(--danger-color);
+        }
+
+        .role-user {
+            background: #e6fffa;
+            color: var(--info-color);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: var(--white);
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: var(--white);
+        }
+
+        .btn-warning:hover {
+            background: #b7791f;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: var(--white);
+        }
+
+        .btn-danger:hover {
+            background: #c53030;
+        }
+
+        .btn-secondary {
+            background: var(--text-secondary);
+            color: var(--white);
+        }
+
+        .btn-secondary:hover {
+            background: #2d3748;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h3 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+            padding: 0.75rem;
+        }
+
+        .flash-messages {
+            margin-bottom: 2rem;
+        }
+
+        .flash-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .flash-success {
+            background: #c6f6d5;
+            color: var(--success-color);
+            border: 1px solid #9ae6b4;
+        }
+
+        .flash-danger {
+            background: #fed7d7;
+            color: var(--danger-color);
+            border: 1px solid #feb2b2;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .users-table {
+                font-size: 0.9rem;
+            }
+            
+            .users-table th,
+            .users-table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🛡️ Admin Dashboard</h1>
+            <div class="nav-links">
+                <a href="{{ url_for('project_selection') }}">📋 Projects</a>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon users">👥</div>
+                <div class="stat-number">{{ stats.total_users }}</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon pending">⏳</div>
+                <div class="stat-number">{{ stats.pending_users }}</div>
+                <div class="stat-label">Pending Approval</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon approved">✅</div>
+                <div class="stat-number">{{ stats.approved_users }}</div>
+                <div class="stat-label">Approved Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon projects">📁</div>
+                <div class="stat-number">{{ stats.total_projects }}</div>
+                <div class="stat-label">Total Projects</div>
+            </div>
+        </div>
+
+        <!-- Users Management -->
+        <div class="users-section">
+            <div class="section-header">
+                <div class="section-title">
+                    👤 User Management
+                </div>
+            </div>
+
+            {% if users %}
+                <div style="overflow-x: auto;">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Status</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Projects</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td><strong>{{ user.username }}</strong></td>
+                                <td>
+                                    {% if user.is_approved %}
+                                        <span class="status-badge status-approved">Approved</span>
+                                    {% else %}
+                                        <span class="status-badge status-pending">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.is_admin %}
+                                        <span class="role-badge role-admin">Admin</span>
+                                    {% else %}
+                                        <span class="role-badge role-user">User</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
+                                <td>{{ user.projects|length }}</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        {% if not user.is_approved %}
+                                            <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" style="display: inline;">
+                                                <button type="submit" class="btn btn-success">✅ Approve</button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        {% if user.id != current_user.id %}
+                                            <form method="POST" action="{{ url_for('toggle_user_admin', user_id=user.id) }}" style="display: inline;">
+                                                {% if user.is_admin %}
+                                                    <button type="submit" class="btn btn-warning">⬇️ Revoke Admin</button>
+                                                {% else %}
+                                                    <button type="submit" class="btn btn-secondary">⬆️ Make Admin</button>
+                                                {% endif %}
+                                            </form>
+                                            
+                                            <button class="btn btn-danger" onclick="showDeleteModal({{ user.id }}, '{{ user.username }}')">
+                                                🗑️ Delete
+                                            </button>
+                                        {% else %}
+                                            <span class="btn btn-secondary" style="opacity: 0.5;">You</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h3>No Users Found</h3>
+                    <p>No users have registered yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Delete User Modal -->
+    <div id="delete-user-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Delete User</h3>
+                <p id="delete-warning" style="color: var(--danger-color); font-size: 0.9rem;"></p>
+            </div>
+            
+            <div class="form-group">
+                <label>Type the username to confirm deletion:</label>
+                <input type="text" id="delete-confirm-username" placeholder="Username">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideDeleteModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deleteUserId = null;
+        let deleteUsername = null;
+
+        function showDeleteModal(userId, username) {
+            deleteUserId = userId;
+            deleteUsername = username;
+            document.getElementById('delete-warning').textContent = 
+                `This will permanently delete user "${username}" and ALL their projects and data. This cannot be undone.`;
+            document.getElementById('delete-confirm-username').value = '';
+            document.getElementById('delete-user-modal').style.display = 'flex';
+        }
+
+        function hideDeleteModal() {
+            document.getElementById('delete-user-modal').style.display = 'none';
+        }
+
+        async function confirmDelete() {
+            const confirmUsername = document.getElementById('delete-confirm-username').value;
+            
+            if (confirmUsername !== deleteUsername) {
+                alert('Username confirmation does not match.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/users/${deleteUserId}/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmUsername: confirmUsername })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const data = await response.json().catch(() => ({ error: 'Delete failed' }));
+                    alert(data.error || 'Delete failed');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('delete-user-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                hideDeleteModal();
+            }
+        });
+
+        // Auto-hide flash messages after 5 seconds
+        setTimeout(() => {
+            const flashMessages = document.querySelectorAll('.flash-message');
+            flashMessages.forEach(msg => {
+                msg.style.opacity = '0';
+                msg.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => msg.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

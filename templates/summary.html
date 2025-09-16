@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Summary - BMS Tool</title>
+    <style>
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .summary-card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            margin-right: 1rem;
+            font-weight: bold;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .points-list {
+            list-style: none;
+        }
+
+        .points-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .points-list li:last-child {
+            border-bottom: none;
+        }
+
+        .point-type {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .point-count {
+            background: var(--secondary-color);
+            color: var(--white);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .panels-section {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .panels-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .panels-header h2 {
+            font-size: 1.8rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .panel-card {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .panel-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-floor {
+            background: var(--success-color);
+            color: var(--white);
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .panel-points {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .panel-point-item {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem;
+            text-align: center;
+        }
+
+        .panel-point-type {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .panel-point-count {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            background: #2a4a6b;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Project Summary</h1>
+            <p id="project-name">Loading project details...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>Calculating I/O point summary...</p>
+        </div>
+
+        <div id="summary-content" style="display: none;">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="card-header">
+                        <div class="card-icon">Σ</div>
+                        <div class="card-title">Total I/O Points</div>
+                    </div>
+                    <ul id="total-points" class="points-list">
+                        <!-- Total points will be populated here -->
+                    </ul>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-header">
+                        <div class="card-icon">#</div>
+                        <div class="card-title">Project Statistics</div>
+                    </div>
+                    <ul class="points-list">
+                        <li>
+                            <span class="point-type">Total Panels</span>
+                            <span id="total-panels" class="point-count">0</span>
+                        </li>
+                        <li>
+                            <span class="point-type">Total Equipment</span>
+                            <span id="total-equipment" class="point-count">0</span>
+                        </li>
+                        <li>
+                            <span class="point-type">Point Types</span>
+                            <span id="point-types-count" class="point-count">0</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="panels-section">
+                <div class="panels-header">
+                    <h2>Panel Breakdown</h2>
+                    <p>I/O points distribution across all panels</p>
+                </div>
+                <div id="panels-container">
+                    <!-- Panel details will be populated here -->
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="/?project_id={{ project_id }}" class="btn btn-secondary">Back to Project</a>
+                <button onclick="exportSummary()" class="btn btn-primary">Export Summary</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project_id }};
+
+        async function loadSummary() {
+            try {
+                const response = await fetch(`/api/project/${projectId}/summary`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load summary');
+                }
+
+                displaySummary(data);
+            } catch (error) {
+                console.error('Error loading summary:', error);
+                document.getElementById('loading').innerHTML = 
+                    `<p style="color: #e53e3e;">Error loading summary: ${error.message}</p>`;
+            }
+        }
+
+        function displaySummary(data) {
+            // Update project name
+            document.getElementById('project-name').textContent = data.project_name;
+
+            // Display total points
+            const totalPointsContainer = document.getElementById('total-points');
+            totalPointsContainer.innerHTML = '';
+            
+            if (Object.keys(data.total_points).length === 0) {
+                totalPointsContainer.innerHTML = '<li><span class="point-type">No points configured</span></li>';
+            } else {
+                Object.entries(data.total_points).forEach(([type, count]) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="point-type">${type}</span>
+                        <span class="point-count">${count}</span>
+                    `;
+                    totalPointsContainer.appendChild(li);
+                });
+            }
+
+            // Update statistics
+            document.getElementById('total-panels').textContent = data.panels.length;
+            
+            // Calculate total equipment (this would need to be added to the API response)
+            document.getElementById('total-equipment').textContent = '-';
+            document.getElementById('point-types-count').textContent = Object.keys(data.total_points).length;
+
+            // Display panels
+            const panelsContainer = document.getElementById('panels-container');
+            panelsContainer.innerHTML = '';
+
+            if (data.panels.length === 0) {
+                panelsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Panels Configured</h3>
+                        <p>Add panels and equipment to see the I/O point breakdown.</p>
+                    </div>
+                `;
+            } else {
+                data.panels.forEach(panel => {
+                    const panelDiv = document.createElement('div');
+                    panelDiv.className = 'panel-card';
+                    
+                    let pointsHtml = '';
+                    if (Object.keys(panel.points).length === 0) {
+                        pointsHtml = '<div class="panel-point-item"><div class="panel-point-type">No points</div></div>';
+                    } else {
+                        Object.entries(panel.points).forEach(([type, count]) => {
+                            pointsHtml += `
+                                <div class="panel-point-item">
+                                    <div class="panel-point-type">${type}</div>
+                                    <div class="panel-point-count">${count}</div>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    panelDiv.innerHTML = `
+                        <div class="panel-header">
+                            <div class="panel-name">${panel.name}</div>
+                            <div class="panel-floor">${panel.floor}</div>
+                        </div>
+                        <div class="panel-points">
+                            ${pointsHtml}
+                        </div>
+                    `;
+                    panelsContainer.appendChild(panelDiv);
+                });
+            }
+
+            // Hide loading and show content
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('summary-content').style.display = 'block';
+        }
+
+        function exportSummary() {
+            // Create a simple text export
+            const summaryData = document.getElementById('summary-content');
+            const projectName = document.getElementById('project-name').textContent;
+            
+            let exportText = `BMS PROJECT SUMMARY\n`;
+            exportText += `Project: ${projectName}\n`;
+            exportText += `Generated: ${new Date().toLocaleString()}\n\n`;
+            
+            exportText += `TOTAL I/O POINTS:\n`;
+            const totalPoints = document.querySelectorAll('#total-points li');
+            totalPoints.forEach(li => {
+                const type = li.querySelector('.point-type').textContent;
+                const count = li.querySelector('.point-count').textContent;
+                exportText += `${type}: ${count}\n`;
+            });
+            
+            exportText += `\nPANEL BREAKDOWN:\n`;
+            const panels = document.querySelectorAll('.panel-card');
+            panels.forEach(panel => {
+                const name = panel.querySelector('.panel-name').textContent;
+                const floor = panel.querySelector('.panel-floor').textContent;
+                exportText += `\n${name} (${floor}):\n`;
+                
+                const points = panel.querySelectorAll('.panel-point-item');
+                points.forEach(point => {
+                    const type = point.querySelector('.panel-point-type').textContent;
+                    const count = point.querySelector('.panel-point-count')?.textContent || '0';
+                    if (count !== '0' && type !== 'No points') {
+                        exportText += `  ${type}: ${count}\n`;
+                    }
+                });
+            });
+
+            // Download as text file
+            const blob = new Blob([exportText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${projectName.replace(/[^a-z0-9]/gi, '_')}_summary.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Load summary when page loads
+        document.addEventListener('DOMContentLoaded', loadSummary);
+    </script>
+</body>
+</html>
