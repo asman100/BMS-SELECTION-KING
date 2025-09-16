@@ -274,7 +274,6 @@
             color: var(--success-color);
             font-size: 0.75rem;
         }
-        }
 
         .equipment-sublist li a {
             color: var(--sidebar-link-text);
@@ -1271,13 +1270,12 @@
                 return;
             }
             const created = await apiCall(`/api/panel/${projectId}`, 'POST', { panelName, floor });
-            // The server now broadcasts the update, so we just need to close the modal
-            // and the socket handler will take care of the rest.
+            // Since socket.io real-time updates are disabled, manually refresh the data
+            appData = await apiCall(`/api/data/${projectId}`);
+            renderSidebar();
             document.getElementById('new-panel-name').value='';
             document.getElementById('new-panel-floor').value='';
             addPanelModal.style.display='none';
-            // Optionally broadcast a user action for real-time feedback to others
-            // broadcastUserAction('panel_added', { panelName, floor });
         } catch(err) {
             // The apiCall function already shows an alert.
             console.error("Failed to add panel:", err);
