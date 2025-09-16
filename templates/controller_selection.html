@@ -370,20 +370,15 @@
         <div id="notification-area"></div>
 
         <div id="selection-content" style="display: none;">
+            <!-- First row: Available Controllers and Available Servers side by side -->
             <div class="selection-grid">
                 <div class="selection-card">
                     <div class="card-header">
-                        <div class="card-icon">🏢</div>
-                        <div class="card-title">Panel Configuration</div>
+                        <div class="card-icon">🎛️</div>
+                        <div class="card-title">Available Controllers</div>
                     </div>
-                    <p style="margin-bottom: 1rem; color: var(--text-secondary);">
-                        Select panels that will have server controllers. Server controllers coordinate the BMS network.
-                    </p>
-                    <div id="panels-container">
-                        <!-- Panels will be populated here -->
-                    </div>
-                    <div style="margin-top: 1rem;">
-                        <button onclick="optimizeControllers()" class="btn btn-success">Optimize Controller Selection</button>
+                    <div id="controllers-container">
+                        <!-- Controller types will be populated here -->
                     </div>
                 </div>
 
@@ -398,14 +393,21 @@
                 </div>
             </div>
 
+            <!-- Second row: Panel Configuration and Server Solution Configuration side by side -->
             <div class="selection-grid">
                 <div class="selection-card">
                     <div class="card-header">
-                        <div class="card-icon">🎛️</div>
-                        <div class="card-title">Available Controllers</div>
+                        <div class="card-icon">🏢</div>
+                        <div class="card-title">Panel Configuration</div>
                     </div>
-                    <div id="controllers-container">
-                        <!-- Controller types will be populated here -->
+                    <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                        Select panels that will have server controllers. Server controllers coordinate the BMS network.
+                    </p>
+                    <div id="panels-container">
+                        <!-- Panels will be populated here -->
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button onclick="optimizeControllers()" class="btn btn-success">Optimize Controller Selection</button>
                     </div>
                 </div>
 
@@ -719,13 +721,6 @@
                         const isSelected = selectedSolutions[panelId] && selectedSolutions[panelId].server_id === solution.server_id;
                         const selectedClass = isSelected ? 'selected-solution' : '';
                         
-                        let modulesList = '';
-                        if (solution.modules && solution.modules.length > 0) {
-                            modulesList = solution.modules.map(m => `${m.name} (${m.part_number})`).join(', ');
-                        } else {
-                            modulesList = 'No additional modules required';
-                        }
-
                         solutionsHtml += `
                             <div class="server-solution-option ${selectedClass}" onclick="selectServerSolution(${panelId}, ${index})" style="
                                 margin: 0.5rem 0; 
@@ -739,8 +734,7 @@
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <div>
                                         <strong>${solution.description}</strong><br>
-                                        <small>Part: ${solution.server_part_number}</small><br>
-                                        <small>Modules: ${modulesList}</small>
+                                        <small>Part: ${solution.server_part_number}</small>
                                     </div>
                                     <div style="text-align: right;">
                                         <strong style="color: var(--primary-color); font-size: 1.2em;">$${solution.total_cost.toFixed(2)}</strong>
