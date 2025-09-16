@@ -1011,12 +1011,19 @@ def get_controller_selection_data(project_id):
     controllers = ControllerType.query.filter_by(is_server=False).all()
     server_modules = ServerModule.query.all()
     
+    # Generate optimal server solutions for each panel
+    server_solutions = {}
+    for panel in panel_data:
+        if panel['points']:  # Only generate solutions for panels with points
+            server_solutions[panel['id']] = generate_optimal_server_solutions(panel['points'])
+    
     return jsonify({
         'panels': panel_data,
         'servers': [s.to_dict() for s in servers],
         'controllers': [c.to_dict() for c in controllers],
         'server_modules': [m.to_dict() for m in server_modules],
-        'existing_selections': selections
+        'existing_selections': selections,
+        'server_solutions': server_solutions
     }), 200
 
 @app.route('/api/projects/<int:project_id>/controller_selection/optimize', methods=['POST'])
@@ -1029,7 +1036,7 @@ def optimize_controller_selection(project_id):
 
     data = request.get_json()
     server_panels = data.get('server_panels', [])  # List of panel IDs selected as servers
-    server_solutions = data.get('server_solutions', {})  # Selected server solution for each panel
+    selected_solutions = data.get('selected_solutions', {})  # Selected solution for each server panel
     
     # Clear existing selections for this project
     ControllerSelection.query.filter_by(project_id=project_id).delete()
@@ -1037,23 +1044,22 @@ def optimize_controller_selection(project_id):
     # Handle server panels with selected solutions
     for panel_id in server_panels:
         panel_id = int(panel_id)
-        if str(panel_id) in server_solutions:
-            solution = server_solutions[str(panel_id)]
-            server_type_id = solution.get('server_type_id')
-            selected_modules = solution.get('modules', [])
+        if str(panel_id) in selected_solutions:
+            solution = selected_solutions[str(panel_id)]
             
-            # Calculate total cost including accessories
-            total_cost = calculate_server_solution_cost(server_type_id, selected_modules)
+            # Create modules list from the solution
+            modules = solution.get('modules', [])
+            modules_json = json.dumps(modules)
             
             selection = ControllerSelection(
                 project_id=project_id,
                 panel_id=panel_id,
-                controller_type_id=server_type_id,
+                controller_type_id=solution['server_id'],
                 quantity=1,
                 is_server_selection=True,
                 is_auto_optimized=False,
-                server_modules=json.dumps(selected_modules),
-                total_cost=total_cost
+                server_modules=modules_json,
+                total_cost=solution['total_cost']
             )
             db.session.add(selection)
 
@@ -1130,6 +1136,187 @@ def calculate_controller_cost_with_accessories(controller_type_id):
             total_cost += accessory.cost
     
     return total_cost
+
+def generate_optimal_server_solutions(panel_points):
+    """Generate optimal server solutions for a panel based on its I/O requirements."""
+    solutions = []
+    
+    # Convert point requirements to standard format
+    requirements = {
+        'AI': panel_points.get('AI', 0),
+        'AO': panel_points.get('AO', 0),
+        'DI': panel_points.get('DI', 0),
+        'DO': panel_points.get('DO', 0),
+        'UI': panel_points.get('UI', 0)
+    }
+    
+    # Get all servers and modules
+    servers = ControllerType.query.filter_by(is_server=True).all()
+    server_modules = ServerModule.query.all()
+    
+    # Generate AS-P solutions (scalable with modules)
+    asp_server = next((s for s in servers if 'AS-P' in s.name), None)
+    if asp_server:
+        asp_solution = generate_asp_solution(asp_server, requirements, server_modules)
+        if asp_solution:
+            solutions.append(asp_solution)
+    
+    # Generate AS-B solutions (fixed capacity)
+    asb_servers = [s for s in servers if 'AS-B' in s.name]
+    for asb_server in asb_servers:
+        asb_solution = generate_asb_solution(asb_server, requirements)
+        if asb_solution:
+            solutions.append(asb_solution)
+    
+    # Sort by cost
+    solutions.sort(key=lambda x: x['total_cost'])
+    
+    return solutions
+
+def generate_asp_solution(asp_server, requirements, server_modules):
+    """Generate AS-P solution with optimal module configuration."""
+    if not asp_server:
+        return None
+    
+    # Start with base server cost and accessories
+    total_cost = asp_server.cost
+    accessories = Accessory.query.filter_by(parent_part_number=asp_server.part_number).all()
+    for accessory in accessories:
+        total_cost += accessory.cost
+    
+    # Find optimal module combination
+    required_modules = []
+    remaining_requirements = requirements.copy()
+    
+    # Sort modules by efficiency (points per cost)
+    module_efficiency = []
+    for module in server_modules:
+        total_points = module.ai_capacity + module.ao_capacity + module.di_capacity + module.do_capacity + module.ui_capacity + module.uio_capacity
+        if total_points > 0:
+            efficiency = total_points / module.cost
+            module_efficiency.append((module, efficiency))
+    
+    module_efficiency.sort(key=lambda x: x[1], reverse=True)
+    
+    # Greedily select modules to meet requirements
+    for module, _ in module_efficiency:
+        while True:
+            # Check if this module helps with any remaining requirement
+            helps = False
+            if (remaining_requirements['AI'] > 0 and module.ai_capacity > 0) or \
+               (remaining_requirements['AO'] > 0 and module.ao_capacity > 0) or \
+               (remaining_requirements['DI'] > 0 and module.di_capacity > 0) or \
+               (remaining_requirements['DO'] > 0 and module.do_capacity > 0) or \
+               (remaining_requirements['UI'] > 0 and module.ui_capacity > 0) or \
+               (sum(remaining_requirements.values()) > 0 and module.uio_capacity > 0):
+                helps = True
+            
+            if not helps:
+                break
+            
+            # Add module
+            required_modules.append({
+                'id': module.id,
+                'name': module.name,
+                'part_number': module.part_number,
+                'quantity': 1,
+                'cost': module.cost
+            })
+            
+            # Update costs
+            total_cost += module.cost
+            module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+            for accessory in module_accessories:
+                total_cost += accessory.cost
+            
+            # Update remaining requirements
+            remaining_requirements['AI'] = max(0, remaining_requirements['AI'] - module.ai_capacity)
+            remaining_requirements['AO'] = max(0, remaining_requirements['AO'] - module.ao_capacity)
+            remaining_requirements['DI'] = max(0, remaining_requirements['DI'] - module.di_capacity)
+            remaining_requirements['DO'] = max(0, remaining_requirements['DO'] - module.do_capacity)
+            remaining_requirements['UI'] = max(0, remaining_requirements['UI'] - module.ui_capacity)
+            
+            # UIO can be used for any remaining requirement
+            total_remaining = sum(remaining_requirements.values())
+            if total_remaining > 0 and module.uio_capacity > 0:
+                reduction = min(total_remaining, module.uio_capacity)
+                # Proportionally reduce remaining requirements
+                if total_remaining > 0:
+                    for key in remaining_requirements:
+                        if remaining_requirements[key] > 0:
+                            reduction_for_type = min(remaining_requirements[key], reduction)
+                            remaining_requirements[key] -= reduction_for_type
+                            reduction -= reduction_for_type
+                            if reduction <= 0:
+                                break
+            
+            # Check if all requirements are met
+            if sum(remaining_requirements.values()) == 0:
+                break
+    
+    # Check if solution is feasible
+    if sum(remaining_requirements.values()) > 0:
+        return None  # Cannot meet requirements
+    
+    return {
+        'type': 'AS-P',
+        'server_id': asp_server.id,
+        'server_name': asp_server.name,
+        'server_part_number': asp_server.part_number,
+        'modules': required_modules,
+        'total_cost': total_cost,
+        'description': f"AS-P Server with {len(required_modules)} modules"
+    }
+
+def generate_asb_solution(asb_server, requirements):
+    """Generate AS-B solution if it can meet requirements."""
+    if not asb_server:
+        return None
+    
+    # Check if AS-B server can handle requirements
+    can_handle = True
+    total_capacity = {
+        'AI': asb_server.ai_capacity,
+        'AO': asb_server.ao_capacity,
+        'DI': asb_server.di_capacity,
+        'DO': asb_server.do_capacity,
+        'UI': asb_server.ui_capacity,
+        'UIO': asb_server.uio_capacity
+    }
+    
+    # Check direct capacity matches
+    remaining = requirements.copy()
+    for point_type in ['AI', 'AO', 'DI', 'DO', 'UI']:
+        if remaining[point_type] > total_capacity[point_type]:
+            # Check if UIO can cover the difference
+            deficit = remaining[point_type] - total_capacity[point_type]
+            if deficit > total_capacity['UIO']:
+                can_handle = False
+                break
+            else:
+                total_capacity['UIO'] -= deficit
+                remaining[point_type] = 0
+        else:
+            remaining[point_type] = 0
+    
+    if not can_handle:
+        return None
+    
+    # Calculate total cost with accessories
+    total_cost = asb_server.cost
+    accessories = Accessory.query.filter_by(parent_part_number=asb_server.part_number).all()
+    for accessory in accessories:
+        total_cost += accessory.cost
+    
+    return {
+        'type': 'AS-B',
+        'server_id': asb_server.id,
+        'server_name': asb_server.name,
+        'server_part_number': asb_server.part_number,
+        'modules': [],  # AS-B doesn't use modules
+        'total_cost': total_cost,
+        'description': f"AS-B {asb_server.name} (fixed capacity)"
+    }
 
 def run_controller_optimization(project_id, panels):
     """

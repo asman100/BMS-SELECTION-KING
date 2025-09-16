@@ -340,6 +340,20 @@
             color: #c53030;
             border: 1px solid #feb2b2;
         }
+
+        .server-solution-option {
+            transition: all 0.2s ease;
+        }
+
+        .server-solution-option:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .selected-solution {
+            border-color: var(--success-color) !important;
+            background-color: #f0fff4 !important;
+        }
     </style>
 </head>
 <body>
@@ -482,8 +496,9 @@
         let servers = [];
         let controllers = [];
         let serverModules = [];
+        let serverSolutions = {}; // Auto-generated optimal solutions for each panel
         let selectedServerPanels = new Set();
-        let serverSolutions = {}; // Store selected server solutions for each panel
+        let selectedSolutions = {}; // User-selected solution for each server panel
         let optimizationResults = null;
         let boqData = null;
 
@@ -500,6 +515,7 @@
                 servers = data.servers;
                 controllers = data.controllers;
                 serverModules = data.server_modules;
+                serverSolutions = data.server_solutions || {};
 
                 displayPanels();
                 displayServers();
@@ -634,7 +650,7 @@
             } else {
                 selectedServerPanels.delete(panelId);
                 panelDiv.classList.remove('server-selected');
-                delete serverSolutions[panelId];
+                delete selectedSolutions[panelId];
                 if (selectedServerPanels.size === 0) {
                     hideServerSolutionSelection();
                 }
@@ -655,43 +671,73 @@
             container.innerHTML = '';
 
             if (selectedServerPanels.size === 0) {
-                container.innerHTML = '<div class="empty-state"><p>Select server panels to configure solutions.</p></div>';
+                container.innerHTML = '<div class="empty-state"><p>Select server panels to view optimal solutions.</p></div>';
                 return;
             }
 
             selectedServerPanels.forEach(panelId => {
                 const panel = panelData.find(p => p.id === panelId);
+                const solutions = serverSolutions[panelId] || [];
+                
                 if (!panel) return;
 
                 const solutionDiv = document.createElement('div');
                 solutionDiv.className = 'panel-item';
-                solutionDiv.style.marginBottom = '1rem';
+                solutionDiv.style.marginBottom = '2rem';
 
                 let pointsHtml = '';
                 Object.entries(panel.points).forEach(([type, count]) => {
                     pointsHtml += `<span class="point-badge">${type}: ${count}</span>`;
                 });
 
+                let solutionsHtml = '';
+                if (solutions.length === 0) {
+                    solutionsHtml = '<p style="color: #999;">No optimal solutions found for this panel configuration.</p>';
+                } else {
+                    solutionsHtml = '<h5>Optimal Server Solutions:</h5>';
+                    solutions.forEach((solution, index) => {
+                        const isSelected = selectedSolutions[panelId] && selectedSolutions[panelId].server_id === solution.server_id;
+                        const selectedClass = isSelected ? 'selected-solution' : '';
+                        
+                        let modulesList = '';
+                        if (solution.modules && solution.modules.length > 0) {
+                            modulesList = solution.modules.map(m => `${m.name} (${m.part_number})`).join(', ');
+                        } else {
+                            modulesList = 'No additional modules required';
+                        }
+
+                        solutionsHtml += `
+                            <div class="server-solution-option ${selectedClass}" onclick="selectServerSolution(${panelId}, ${index})" style="
+                                margin: 0.5rem 0; 
+                                padding: 1rem; 
+                                border: 2px solid ${isSelected ? 'var(--success-color)' : 'var(--border-color)'}; 
+                                border-radius: 8px; 
+                                cursor: pointer; 
+                                background: ${isSelected ? '#f0fff4' : 'white'};
+                                transition: all 0.2s ease;
+                            ">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${solution.description}</strong><br>
+                                        <small>Part: ${solution.server_part_number}</small><br>
+                                        <small>Modules: ${modulesList}</small>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <strong style="color: var(--primary-color); font-size: 1.2em;">$${solution.total_cost.toFixed(2)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
                 solutionDiv.innerHTML = `
                     <div style="margin-bottom: 1rem;">
                         <h4>${panel.name} - ${panel.floor}</h4>
                         <div class="panel-points">${pointsHtml}</div>
                     </div>
-                    <div style="margin-bottom: 1rem;">
-                        <label for="server-select-${panelId}">Select Server Type:</label>
-                        <select id="server-select-${panelId}" onchange="updateServerSelection(${panelId})" style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
-                            <option value="">Choose a server...</option>
-                            ${servers.map(server => 
-                                `<option value="${server.id}">${server.name} - $${server.cost.toFixed(2)}</option>`
-                            ).join('')}
-                        </select>
-                    </div>
-                    <div id="modules-${panelId}" style="display: none;">
-                        <h5>Server Modules (optional):</h5>
-                        <div id="modules-list-${panelId}"></div>
-                        <div style="margin-top: 1rem;">
-                            <strong>Estimated Total Cost: $<span id="cost-${panelId}">0.00</span></strong>
-                        </div>
+                    <div>
+                        ${solutionsHtml}
                     </div>
                 `;
 
@@ -699,125 +745,20 @@
             });
         }
 
-        function updateServerSelection(panelId) {
-            const select = document.getElementById(`server-select-${panelId}`);
-            const serverId = select.value;
-            
-            if (!serverId) {
-                document.getElementById(`modules-${panelId}`).style.display = 'none';
-                delete serverSolutions[panelId];
-                return;
+        function selectServerSolution(panelId, solutionIndex) {
+            const solutions = serverSolutions[panelId] || [];
+            if (solutionIndex < solutions.length) {
+                selectedSolutions[panelId] = solutions[solutionIndex];
+                updateServerSolutionDisplay(); // Refresh to show selected state
             }
-
-            // Initialize server solution
-            if (!serverSolutions[panelId]) {
-                serverSolutions[panelId] = {
-                    server_type_id: parseInt(serverId),
-                    modules: []
-                };
-            } else {
-                serverSolutions[panelId].server_type_id = parseInt(serverId);
-                serverSolutions[panelId].modules = []; // Reset modules when server changes
-            }
-
-            // Show modules section
-            document.getElementById(`modules-${panelId}`).style.display = 'block';
-            displayServerModules(panelId);
-            updateServerCost(panelId);
-        }
-
-        function displayServerModules(panelId) {
-            const container = document.getElementById(`modules-list-${panelId}`);
-            container.innerHTML = '';
-
-            if (serverModules.length === 0) {
-                container.innerHTML = '<p>No server modules available.</p>';
-                return;
-            }
-
-            serverModules.forEach(module => {
-                const moduleDiv = document.createElement('div');
-                moduleDiv.className = 'panel-item';
-                moduleDiv.style.marginBottom = '0.5rem';
-
-                const capacityInfo = [
-                    `AI: ${module.ai_capacity}`,
-                    `AO: ${module.ao_capacity}`,
-                    `DI: ${module.di_capacity}`,
-                    `DO: ${module.do_capacity}`,
-                    `UIO: ${module.uio_capacity}`
-                ].join(', ');
-
-                moduleDiv.innerHTML = `
-                    <div class="panel-info">
-                        <div class="panel-name">${module.name}</div>
-                        <div class="panel-floor">${module.part_number} - $${module.cost.toFixed(2)}</div>
-                        <div class="panel-points">
-                            <span class="point-badge">${capacityInfo}</span>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <label for="qty-${panelId}-${module.id}">Qty:</label>
-                        <input type="number" id="qty-${panelId}-${module.id}" 
-                               min="0" max="10" value="0" 
-                               onchange="updateModuleQuantity(${panelId}, ${module.id})"
-                               style="width: 60px; padding: 0.25rem;">
-                    </div>
-                `;
-
-                container.appendChild(moduleDiv);
-            });
-        }
-
-        function updateModuleQuantity(panelId, moduleId) {
-            const qtyInput = document.getElementById(`qty-${panelId}-${moduleId}`);
-            const quantity = parseInt(qtyInput.value) || 0;
-
-            if (!serverSolutions[panelId]) return;
-
-            // Remove existing module entry
-            serverSolutions[panelId].modules = serverSolutions[panelId].modules.filter(m => m.id !== moduleId);
-
-            // Add new entry if quantity > 0
-            if (quantity > 0) {
-                serverSolutions[panelId].modules.push({
-                    id: moduleId,
-                    quantity: quantity
-                });
-            }
-
-            updateServerCost(panelId);
-        }
-
-        function updateServerCost(panelId) {
-            const costSpan = document.getElementById(`cost-${panelId}`);
-            if (!costSpan || !serverSolutions[panelId]) return;
-
-            let totalCost = 0;
-
-            // Add server cost
-            const server = servers.find(s => s.id === serverSolutions[panelId].server_type_id);
-            if (server) {
-                totalCost += server.cost;
-            }
-
-            // Add modules cost
-            serverSolutions[panelId].modules.forEach(moduleData => {
-                const module = serverModules.find(m => m.id === moduleData.id);
-                if (module) {
-                    totalCost += module.cost * moduleData.quantity;
-                }
-            });
-
-            costSpan.textContent = totalCost.toFixed(2);
         }
 
         async function optimizeControllers() {
             try {
-                // Validate that all server panels have solutions configured
+                // Validate that all server panels have solutions selected
                 for (let panelId of selectedServerPanels) {
-                    if (!serverSolutions[panelId] || !serverSolutions[panelId].server_type_id) {
-                        showNotification('Please configure server solutions for all selected server panels before optimizing.', 'warning');
+                    if (!selectedSolutions[panelId]) {
+                        showNotification('Please select a server solution for all designated server panels before optimizing.', 'warning');
                         return;
                     }
                 }
@@ -831,7 +772,7 @@
                     },
                     body: JSON.stringify({
                         server_panels: Array.from(selectedServerPanels),
-                        server_solutions: serverSolutions
+                        selected_solutions: selectedSolutions
                     })
                 });
 
