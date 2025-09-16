@@ -1571,6 +1571,91 @@ def generate_controller_boq(project_id):
         'grand_total': total_controller_cost + total_field_cost
     }), 200
 
+@app.route('/api/projects/<int:project_id>/controller_selection/point_list', methods=['GET'])
+@login_required
+def generate_point_list(project_id):
+    """Generate point list showing equipment with their I/O points by panel."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get all scheduled equipment for the project
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    point_list = []
+    
+    for equip in scheduled_equipments:
+        # Get panel information from relationship
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
+        floor = equip.panel.floor if equip.panel else "Unknown Floor"
+        
+        # Initialize point counts
+        total_di = total_do = total_ai = total_ao = 0
+        communication_types = set()
+        
+        # Get selected points for this equipment
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            # Get quantity from equipment template point relationship
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=equip.equipment_template_id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+            
+            # Count points by type from sub_points
+            for sub_point in pt.sub_points:
+                point_type = sub_point.point_type.upper()
+                if point_type == 'DI':
+                    total_di += point_qty
+                elif point_type == 'DO':
+                    total_do += point_qty
+                elif point_type == 'AI':
+                    total_ai += point_qty
+                elif point_type == 'AO':
+                    total_ao += point_qty
+                    
+                # Determine communication type (assume BACnet for smart devices, Modbus for basic I/O)
+                if point_type in ['AI', 'AO']:
+                    communication_types.add('BACnet')
+                else:
+                    communication_types.add('Modbus')
+        
+        # Default to BACnet if no specific communication type determined
+        if not communication_types:
+            communication_types.add('BACnet')
+            
+        communication = '/'.join(sorted(communication_types))
+        
+        point_list.append({
+            'panel_name': panel_name,
+            'floor': floor,
+            'equipment_name': equip.instance_name,
+            'equipment_type': equip.equipment_template.type_key if equip.equipment_template else 'Unknown',
+            'quantity': equip.quantity,
+            'di': total_di,
+            'do': total_do,
+            'ai': total_ai,
+            'ao': total_ao,
+            'communication': communication
+        })
+    
+    # Sort by panel name, then by equipment name
+    point_list.sort(key=lambda x: (x['panel_name'], x['equipment_name']))
+    
+    return jsonify({
+        'point_list': point_list,
+        'total_equipment': len(point_list),
+        'summary': {
+            'total_di': sum(item['di'] for item in point_list),
+            'total_do': sum(item['do'] for item in point_list),
+            'total_ai': sum(item['ai'] for item in point_list),
+            'total_ao': sum(item['ao'] for item in point_list)
+        }
+    }), 200
+
 # --- SOCKET.IO ---
 
 # Store active users per project

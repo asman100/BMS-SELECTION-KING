@@ -481,6 +481,26 @@
 
                 <div style="margin-top: 1rem;">
                     <button onclick="exportBOQ()" class="btn btn-warning">Export BOQ</button>
+                    <button onclick="generatePointList()" class="btn btn-success" style="margin-left: 0.5rem;">Generate Point List</button>
+                </div>
+            </div>
+
+            <div id="point-list-section" class="boq-section" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">📋</div>
+                    <div class="card-title">Equipment Point List</div>
+                </div>
+                
+                <div id="point-list-table">
+                    <!-- Point list table will be populated here -->
+                </div>
+
+                <div id="point-summary" style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 6px;">
+                    <!-- Point summary will be populated here -->
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button onclick="exportPointList()" class="btn btn-warning">Export Point List</button>
                 </div>
             </div>
 
@@ -957,6 +977,149 @@
             const a = document.createElement('a');
             a.href = url;
             a.download = `controller_selection_boq_${projectId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function generatePointList() {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/point_list`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate point list');
+                }
+
+                displayPointList(data);
+                document.getElementById('point-list-section').style.display = 'block';
+
+                showNotification('Point list generated successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error generating point list:', error);
+                showNotification('Failed to generate point list: ' + error.message, 'error');
+            }
+        }
+
+        function displayPointList(data) {
+            const container = document.getElementById('point-list-table');
+            const summaryContainer = document.getElementById('point-summary');
+
+            if (!data.point_list || data.point_list.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No equipment points found.</p></div>';
+                summaryContainer.innerHTML = '';
+                return;
+            }
+
+            // Create point list table
+            let tableHtml = `
+                <table class="boq-table">
+                    <thead>
+                        <tr>
+                            <th>Panel Name</th>
+                            <th>Floor</th>
+                            <th>Equipment</th>
+                            <th>Type</th>
+                            <th>Qty</th>
+                            <th>DI</th>
+                            <th>DO</th>
+                            <th>AI</th>
+                            <th>AO</th>
+                            <th>Communication</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.point_list.forEach(item => {
+                tableHtml += `
+                    <tr>
+                        <td><strong>${item.panel_name}</strong></td>
+                        <td>${item.floor}</td>
+                        <td>${item.equipment_name}</td>
+                        <td>${item.equipment_type}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.di}</td>
+                        <td>${item.do}</td>
+                        <td>${item.ai}</td>
+                        <td>${item.ao}</td>
+                        <td>${item.communication}</td>
+                    </tr>
+                `;
+            });
+
+            // Add summary row
+            const summary = data.summary;
+            tableHtml += `
+                    <tr class="boq-total">
+                        <td colspan="5"><strong>TOTALS</strong></td>
+                        <td><strong>${summary.total_di}</strong></td>
+                        <td><strong>${summary.total_do}</strong></td>
+                        <td><strong>${summary.total_ai}</strong></td>
+                        <td><strong>${summary.total_ao}</strong></td>
+                        <td><strong>-</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+            `;
+
+            container.innerHTML = tableHtml;
+
+            // Display summary
+            summaryContainer.innerHTML = `
+                <h4>Point Summary</h4>
+                <p><strong>Total Equipment Items:</strong> ${data.total_equipment}</p>
+                <p><strong>Total I/O Points:</strong> 
+                   DI: ${summary.total_di}, 
+                   DO: ${summary.total_do}, 
+                   AI: ${summary.total_ai}, 
+                   AO: ${summary.total_ao}
+                </p>
+                <p><strong>Grand Total Points:</strong> ${summary.total_di + summary.total_do + summary.total_ai + summary.total_ao}</p>
+            `;
+        }
+
+        function exportPointList() {
+            const container = document.getElementById('point-list-table');
+            const summaryContainer = document.getElementById('point-summary');
+            
+            if (!container.innerHTML.includes('boq-table')) {
+                showNotification('No point list to export. Generate the point list first.', 'warning');
+                return;
+            }
+
+            let content = "EQUIPMENT POINT LIST\n";
+            content += "===================\n\n";
+
+            // Extract data from the table
+            const table = container.querySelector('.boq-table');
+            const rows = table.querySelectorAll('tr');
+            
+            // Add header
+            const headers = Array.from(rows[0].querySelectorAll('th')).map(th => th.textContent);
+            content += headers.join('\t') + '\n';
+            content += '='.repeat(headers.join('\t').length) + '\n';
+
+            // Add data rows (skip header and total row)
+            for (let i = 1; i < rows.length - 1; i++) {
+                const cells = Array.from(rows[i].querySelectorAll('td')).map(td => td.textContent);
+                content += cells.join('\t') + '\n';
+            }
+
+            // Add totals
+            const totalRow = Array.from(rows[rows.length - 1].querySelectorAll('td')).map(td => td.textContent);
+            content += '\n' + totalRow.join('\t') + '\n';
+
+            // Add summary
+            content += '\n' + summaryContainer.textContent.replace(/\s+/g, ' ').trim() + '\n';
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `point_list_project_${projectId}.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
