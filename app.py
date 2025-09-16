@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
+from datetime import datetime
 
 # --- APP SETUP ---
 app = Flask(__name__)
@@ -829,7 +830,7 @@ def broadcast_update(project_id):
     """Enhanced broadcast with user action info"""
     socketio.emit('update', {
         'project_id': project_id,
-        'timestamp': db.func.current_timestamp(),
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
         'updated_by': current_user.username if current_user.is_authenticated else 'System'
     }, room=project_id)
 
@@ -837,7 +838,7 @@ def broadcast_global_catalog():
     """Emit event notifying clients that global catalogs (templates/points/parts) changed."""
     socketio.emit('global_catalog_update', {
         'updated_by': current_user.username if current_user.is_authenticated else 'System',
-        'timestamp': db.func.current_timestamp()
+        'timestamp': datetime.utcnow().isoformat() + 'Z'
     })
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])

@@ -966,21 +966,16 @@
                 return;
             }
             const created = await apiCall(`/api/panel/${projectId}`, 'POST', { panelName, floor });
-            // Optimistically update state
-            appData.panels.push(created);
-            renderSidebar();
-            // Auto-select new panel
-            selectPanel(created.panelName, created.floor);
-            // Clear and close modal
+            // The server now broadcasts the update, so we just need to close the modal
+            // and the socket handler will take care of the rest.
             document.getElementById('new-panel-name').value='';
             document.getElementById('new-panel-floor').value='';
             addPanelModal.style.display='none';
-            // Broadcast action
-            broadcastUserAction('panel_added', { panelName, floor });
-            // Prevent immediate socket-triggered duplicate fetch
-            ignoreNextSocketUpdate = true;
+            // Optionally broadcast a user action for real-time feedback to others
+            // broadcastUserAction('panel_added', { panelName, floor });
         } catch(err) {
-            alert(err.error || 'Failed to add panel');
+            // The apiCall function already shows an alert.
+            console.error("Failed to add panel:", err);
         }
     });
 
@@ -1489,16 +1484,37 @@
         const data = { panelName: panelNameInput.value, floor: floorNameInput.value, instanceName: form["instance-name"].value, quantity: parseInt(quantityInput.value), type: form["equipment-type"].value, selectedPoints };
         const url = editingId ? `/api/equipment/${projectId}/${editingId}` : `/api/equipment/${projectId}`;
         const method = editingId ? "PUT" : "POST";
-        await apiCall(url, method, data);
-        ignoreNextSocketUpdate = true;
-        const updatedData = await apiCall(`/api/data/${projectId}`);
-        appData.scheduledEquipment = updatedData.scheduledEquipment;
-        appData.panels = updatedData.panels;
-        renderSidebar();
-        if (editingId) {
-            const updatedItem = appData.scheduledEquipment.find(e => e.id === editingId);
-            if (updatedItem) setTimeout(()=>loadEquipmentForEdit(editingId), 50);
-        } else { resetForm(); }
+        
+        try {
+            await apiCall(url, method, data);
+            ignoreNextSocketUpdate = true; // Prevent socket from re-rendering over our optimistic update
+            
+            // Manually fetch the latest data to ensure UI consistency
+            const updatedData = await apiCall(`/api/data/${projectId}`);
+            appData.scheduledEquipment = updatedData.scheduledEquipment;
+            appData.panels = updatedData.panels;
+            
+            // Re-render the sidebar to show the new/updated equipment
+            renderSidebar();
+
+            if (editingId) {
+                // If we were editing, reload the form with the updated item's data
+                const updatedItem = appData.scheduledEquipment.find(e => e.id === editingId);
+                if (updatedItem) {
+                    // Use a timeout to ensure the sidebar has re-rendered before loading the item
+                    setTimeout(() => loadEquipmentForEdit(editingId), 50);
+                }
+            } else {
+                // If we were adding a new item, just clear the equipment-specific fields
+                form["instance-name"].value = '';
+                form["equipment-type"].value = '';
+                quantityInput.value = 1;
+                renderCheckboxes(''); // This will hide and clear the checkboxes
+            }
+        } catch (error) {
+            // The apiCall function already shows an alert, but we can log here for debugging
+            console.error("Failed to submit equipment form:", error);
+        }
     }
 
     function handleSearch() {
