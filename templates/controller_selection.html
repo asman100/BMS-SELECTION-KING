@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controller Selection - BMS Tool</title>
+    <style>
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #e53e3e;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        .selection-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 1200px) {
+            .selection-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .selection-card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            margin-right: 1rem;
+            font-weight: bold;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .panel-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-item.server-selected {
+            border-color: var(--success-color);
+            background: #f0fff4;
+        }
+
+        .panel-info {
+            flex: 1;
+        }
+
+        .panel-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .panel-floor {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .panel-points {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .point-badge {
+            background: var(--secondary-color);
+            color: var(--white);
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .server-checkbox {
+            margin-left: 1rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            background: #2a4a6b;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: var(--white);
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: var(--white);
+        }
+
+        .btn-warning:hover {
+            background: #dd6b20;
+        }
+
+        .optimization-results {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .result-item.server {
+            background: #f0fff4;
+            border-color: var(--success-color);
+        }
+
+        .result-item.optimized {
+            background: #eff6ff;
+            border-color: var(--secondary-color);
+        }
+
+        .controller-info {
+            flex: 1;
+        }
+
+        .controller-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .controller-details {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .cost-info {
+            text-align: right;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .boq-section {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .boq-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .boq-table th,
+        .boq-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .boq-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .boq-total {
+            background: var(--primary-color);
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .notification {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .notification.success {
+            background: #f0fff4;
+            color: #2f855a;
+            border: 1px solid #9ae6b4;
+        }
+
+        .notification.warning {
+            background: #fffbeb;
+            color: #c05621;
+            border: 1px solid #fbb6ce;
+        }
+
+        .notification.error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Controller Selection</h1>
+            <p>Select server panels and optimize controller allocation</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>Loading panel data and controller types...</p>
+        </div>
+
+        <div id="notification-area"></div>
+
+        <div id="selection-content" style="display: none;">
+            <div class="selection-grid">
+                <div class="selection-card">
+                    <div class="card-header">
+                        <div class="card-icon">🏢</div>
+                        <div class="card-title">Panel Configuration</div>
+                    </div>
+                    <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                        Select panels that will have server controllers. Server controllers coordinate the BMS network.
+                    </p>
+                    <div id="panels-container">
+                        <!-- Panels will be populated here -->
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button onclick="optimizeControllers()" class="btn btn-success">Optimize Controller Selection</button>
+                    </div>
+                </div>
+
+                <div class="selection-card">
+                    <div class="card-header">
+                        <div class="card-icon">🎛️</div>
+                        <div class="card-title">Available Controllers</div>
+                    </div>
+                    <div id="controller-types-container">
+                        <!-- Controller types will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="optimization-results" class="optimization-results" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">✨</div>
+                    <div class="card-title">Optimization Results</div>
+                </div>
+                <div id="results-container">
+                    <!-- Results will be populated here -->
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button onclick="generateBOQ()" class="btn btn-primary">Generate BOQ Report</button>
+                </div>
+            </div>
+
+            <div id="boq-section" class="boq-section" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">📊</div>
+                    <div class="card-title">Bill of Quantities (BOQ)</div>
+                </div>
+                
+                <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Controllers</h3>
+                <table id="controller-boq-table" class="boq-table">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Cost</th>
+                            <th>Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="controller-boq-body">
+                        <!-- Controller BOQ will be populated here -->
+                    </tbody>
+                </table>
+
+                <h3 style="margin-top: 2rem; margin-bottom: 1rem;">Field Devices</h3>
+                <table id="field-devices-boq-table" class="boq-table">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Quantity</th>
+                            <th>Unit Cost</th>
+                            <th>Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="field-devices-boq-body">
+                        <!-- Field devices BOQ will be populated here -->
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 1rem; text-align: right;">
+                    <strong>Total Controllers: $<span id="total-controller-cost">0</span></strong><br>
+                    <strong>Total Field Devices: $<span id="total-field-cost">0</span></strong><br>
+                    <strong style="font-size: 1.2em;">Grand Total: $<span id="grand-total-cost">0</span></strong>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button onclick="exportBOQ()" class="btn btn-warning">Export BOQ</button>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="/summary/{{ project_id }}" class="btn btn-secondary">Back to Summary</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project_id }};
+        let panelData = [];
+        let controllerTypes = [];
+        let selectedServerPanels = new Set();
+        let optimizationResults = null;
+        let boqData = null;
+
+        async function loadControllerSelectionData() {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/controller_selection`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load controller selection data');
+                }
+
+                panelData = data.panels;
+                controllerTypes = data.controller_types;
+
+                displayPanels();
+                displayControllerTypes();
+
+                // Hide loading and show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('selection-content').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading controller selection data:', error);
+                showNotification('Error loading data: ' + error.message, 'error');
+            }
+        }
+
+        function displayPanels() {
+            const container = document.getElementById('panels-container');
+            container.innerHTML = '';
+
+            if (panelData.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No panels configured for this project.</p></div>';
+                return;
+            }
+
+            panelData.forEach(panel => {
+                const panelDiv = document.createElement('div');
+                panelDiv.className = 'panel-item';
+                panelDiv.id = `panel-${panel.id}`;
+
+                let pointsHtml = '';
+                Object.entries(panel.points).forEach(([type, count]) => {
+                    pointsHtml += `<span class="point-badge">${type}: ${count}</span>`;
+                });
+
+                panelDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${panel.name}</div>
+                        <div class="panel-floor">${panel.floor}</div>
+                        <div class="panel-points">${pointsHtml || '<span class="point-badge">No points</span>'}</div>
+                    </div>
+                    <div class="server-checkbox">
+                        <label>
+                            <input type="checkbox" onchange="toggleServerPanel(${panel.id})" id="server-${panel.id}">
+                            Server Panel
+                        </label>
+                    </div>
+                `;
+
+                container.appendChild(panelDiv);
+            });
+        }
+
+        function displayControllerTypes() {
+            const container = document.getElementById('controller-types-container');
+            container.innerHTML = '';
+
+            if (controllerTypes.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No controller types available.</p></div>';
+                return;
+            }
+
+            controllerTypes.forEach(controller => {
+                const controllerDiv = document.createElement('div');
+                controllerDiv.className = 'panel-item';
+
+                const capacityInfo = [
+                    `AI: ${controller.ai_capacity}`,
+                    `AO: ${controller.ao_capacity}`,
+                    `DI: ${controller.di_capacity}`,
+                    `DO: ${controller.do_capacity}`
+                ].join(', ');
+
+                controllerDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${controller.name} ${controller.is_server ? '(Server)' : ''}</div>
+                        <div class="panel-floor">${controller.part_number}</div>
+                        <div class="panel-points">
+                            <span class="point-badge">${capacityInfo}</span>
+                            <span class="point-badge">$${controller.cost}</span>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(controllerDiv);
+            });
+        }
+
+        function toggleServerPanel(panelId) {
+            const checkbox = document.getElementById(`server-${panelId}`);
+            const panelDiv = document.getElementById(`panel-${panelId}`);
+
+            if (checkbox.checked) {
+                selectedServerPanels.add(panelId);
+                panelDiv.classList.add('server-selected');
+            } else {
+                selectedServerPanels.delete(panelId);
+                panelDiv.classList.remove('server-selected');
+            }
+        }
+
+        async function optimizeControllers() {
+            try {
+                showNotification('Optimizing controller selection...', 'success');
+
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/optimize`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        server_panels: Array.from(selectedServerPanels)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to optimize controllers');
+                }
+
+                optimizationResults = data.existing_selections;
+                displayOptimizationResults();
+
+                showNotification('Controller selection optimized successfully!', 'success');
+            } catch (error) {
+                console.error('Error optimizing controllers:', error);
+                showNotification('Error optimizing controllers: ' + error.message, 'error');
+            }
+        }
+
+        function displayOptimizationResults() {
+            const container = document.getElementById('results-container');
+            container.innerHTML = '';
+
+            if (!optimizationResults || optimizationResults.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No optimization results available.</p></div>';
+                return;
+            }
+
+            let totalCost = 0;
+
+            optimizationResults.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `result-item ${result.is_server_selection ? 'server' : 'optimized'}`;
+
+                const cost = result.controller_type.cost * result.quantity;
+                totalCost += cost;
+
+                const capacityInfo = [
+                    `AI: ${result.controller_type.ai_capacity}`,
+                    `AO: ${result.controller_type.ao_capacity}`,
+                    `DI: ${result.controller_type.di_capacity}`,
+                    `DO: ${result.controller_type.do_capacity}`
+                ].join(', ');
+
+                resultDiv.innerHTML = `
+                    <div class="controller-info">
+                        <div class="controller-name">
+                            ${result.panel_name} - ${result.controller_type.name}
+                            ${result.is_server_selection ? ' (Server)' : ' (Auto-optimized)'}
+                        </div>
+                        <div class="controller-details">
+                            ${result.controller_type.part_number} | ${capacityInfo} | Qty: ${result.quantity}
+                        </div>
+                    </div>
+                    <div class="cost-info">
+                        $${cost.toFixed(2)}
+                    </div>
+                `;
+
+                container.appendChild(resultDiv);
+            });
+
+            // Add total cost
+            const totalDiv = document.createElement('div');
+            totalDiv.innerHTML = `
+                <div style="text-align: right; margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 6px;">
+                    <strong>Total Controller Cost: $${totalCost.toFixed(2)}</strong>
+                </div>
+            `;
+            container.appendChild(totalDiv);
+
+            document.getElementById('optimization-results').style.display = 'block';
+        }
+
+        async function generateBOQ() {
+            try {
+                showNotification('Generating BOQ report...', 'success');
+
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/boq`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate BOQ');
+                }
+
+                boqData = data;
+                displayBOQ();
+
+                showNotification('BOQ report generated successfully!', 'success');
+            } catch (error) {
+                console.error('Error generating BOQ:', error);
+                showNotification('Error generating BOQ: ' + error.message, 'error');
+            }
+        }
+
+        function displayBOQ() {
+            if (!boqData) return;
+
+            // Display controller BOQ
+            const controllerBody = document.getElementById('controller-boq-body');
+            controllerBody.innerHTML = '';
+
+            boqData.controller_boq.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.part_number}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.unit_cost.toFixed(2)}</td>
+                    <td>$${item.total_cost.toFixed(2)}</td>
+                `;
+                controllerBody.appendChild(row);
+            });
+
+            // Display field devices BOQ
+            const fieldBody = document.getElementById('field-devices-boq-body');
+            fieldBody.innerHTML = '';
+
+            boqData.field_devices_boq.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.part_number}</td>
+                    <td>${item.name}</td>
+                    <td>${item.category}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.unit_cost.toFixed(2)}</td>
+                    <td>$${item.total_cost.toFixed(2)}</td>
+                `;
+                fieldBody.appendChild(row);
+            });
+
+            // Update totals
+            document.getElementById('total-controller-cost').textContent = boqData.total_controller_cost.toFixed(2);
+            document.getElementById('total-field-cost').textContent = boqData.total_field_cost.toFixed(2);
+            document.getElementById('grand-total-cost').textContent = boqData.grand_total.toFixed(2);
+
+            document.getElementById('boq-section').style.display = 'block';
+        }
+
+        function exportBOQ() {
+            if (!boqData) {
+                showNotification('No BOQ data available to export', 'warning');
+                return;
+            }
+
+            let exportText = `BMS CONTROLLER SELECTION - BILL OF QUANTITIES\n`;
+            exportText += `Project ID: ${projectId}\n`;
+            exportText += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+            exportText += `CONTROLLERS:\n`;
+            exportText += `Part Number\tDescription\tQuantity\tUnit Cost\tTotal Cost\n`;
+            boqData.controller_boq.forEach(item => {
+                exportText += `${item.part_number}\t${item.name}\t${item.quantity}\t$${item.unit_cost.toFixed(2)}\t$${item.total_cost.toFixed(2)}\n`;
+            });
+            exportText += `\nTotal Controllers: $${boqData.total_controller_cost.toFixed(2)}\n\n`;
+
+            exportText += `FIELD DEVICES:\n`;
+            exportText += `Part Number\tDescription\tCategory\tQuantity\tUnit Cost\tTotal Cost\n`;
+            boqData.field_devices_boq.forEach(item => {
+                exportText += `${item.part_number}\t${item.name}\t${item.category}\t${item.quantity}\t$${item.unit_cost.toFixed(2)}\t$${item.total_cost.toFixed(2)}\n`;
+            });
+            exportText += `\nTotal Field Devices: $${boqData.total_field_cost.toFixed(2)}\n\n`;
+
+            exportText += `GRAND TOTAL: $${boqData.grand_total.toFixed(2)}\n`;
+
+            // Download as text file
+            const blob = new Blob([exportText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `controller_selection_boq_${projectId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showNotification(message, type) {
+            const area = document.getElementById('notification-area');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            area.appendChild(notification);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadControllerSelectionData);
+    </script>
+</body>
+</html>

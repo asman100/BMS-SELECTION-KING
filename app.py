@@ -144,6 +144,59 @@ class Panel(db.Model):
     def to_dict(self):
         return {"id": self.id, "panelName": self.panel_name, "floor": self.floor}
 
+# Controller Selection Models
+class ControllerType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False, unique=True)
+    ai_capacity = db.Column(db.Integer, default=0)
+    ao_capacity = db.Column(db.Integer, default=0)
+    di_capacity = db.Column(db.Integer, default=0)
+    do_capacity = db.Column(db.Integer, default=0)
+    ui_capacity = db.Column(db.Integer, default=0)  # Universal Inputs
+    cost = db.Column(db.Float, nullable=False)
+    is_server = db.Column(db.Boolean, default=False)  # True for server controllers
+    max_points_total = db.Column(db.Integer, default=0)  # Maximum total points
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part_number": self.part_number,
+            "ai_capacity": self.ai_capacity,
+            "ao_capacity": self.ao_capacity,
+            "di_capacity": self.di_capacity,
+            "do_capacity": self.do_capacity,
+            "ui_capacity": self.ui_capacity,
+            "cost": self.cost,
+            "is_server": self.is_server,
+            "max_points_total": self.max_points_total
+        }
+
+class ControllerSelection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    panel_id = db.Column(db.Integer, db.ForeignKey('panel.id'), nullable=False)
+    controller_type_id = db.Column(db.Integer, db.ForeignKey('controller_type.id'), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+    is_server_selection = db.Column(db.Boolean, default=False)  # User selected as server
+    is_auto_optimized = db.Column(db.Boolean, default=False)  # Auto-optimized selection
+    
+    controller_type = db.relationship('ControllerType')
+    panel = db.relationship('Panel')
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "panel_id": self.panel_id,
+            "panel_name": self.panel.panel_name,
+            "controller_type": self.controller_type.to_dict(),
+            "quantity": self.quantity,
+            "is_server_selection": self.is_server_selection,
+            "is_auto_optimized": self.is_auto_optimized
+        }
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -477,6 +530,16 @@ def summary_page(project_id):
         flash("You do not have permission to access this project.", "danger")
         return redirect(url_for('project_selection'))
     return render_template('summary.html', project_id=project.id)
+
+@app.route('/controller_selection/<int:project_id>')
+@login_required
+def controller_selection_page(project_id):
+    """Render the controller selection page."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('controller_selection.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):
@@ -798,6 +861,319 @@ def list_equipment_templates():
 def list_point_templates():
     return jsonify({pt.id: pt.to_dict() for pt in PointTemplate.query.all()}), 200
 
+# --- CONTROLLER SELECTION API ENDPOINTS ---
+
+@app.route('/api/controller_types', methods=['GET'])
+@login_required
+def list_controller_types():
+    """Get all available controller types."""
+    controller_types = ControllerType.query.all()
+    return jsonify([ct.to_dict() for ct in controller_types]), 200
+
+@app.route('/api/controller_types', methods=['POST'])
+@login_required
+def add_controller_type():
+    """Add a new controller type (admin only)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+    
+    data = request.get_json()
+    
+    # Check if part number already exists
+    if ControllerType.query.filter_by(part_number=data['part_number']).first():
+        return jsonify({"error": f"Controller part number '{data['part_number']}' already exists."}), 409
+    
+    controller_type = ControllerType(
+        name=data['name'],
+        part_number=data['part_number'],
+        ai_capacity=data.get('ai_capacity', 0),
+        ao_capacity=data.get('ao_capacity', 0),
+        di_capacity=data.get('di_capacity', 0),
+        do_capacity=data.get('do_capacity', 0),
+        ui_capacity=data.get('ui_capacity', 0),
+        cost=data['cost'],
+        is_server=data.get('is_server', False),
+        max_points_total=data.get('max_points_total', 0)
+    )
+    
+    db.session.add(controller_type)
+    db.session.commit()
+    
+    return jsonify(controller_type.to_dict()), 201
+
+@app.route('/api/projects/<int:project_id>/controller_selection', methods=['GET'])
+@login_required
+def get_controller_selection_data(project_id):
+    """Get controller selection data for a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get panel summary data (reuse existing endpoint logic)
+    panels = Panel.query.filter_by(project_id=project_id).all()
+    panel_data = []
+    
+    for panel in panels:
+        panel_summary = {}
+        equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel.id).all()
+        
+        for equip in equipments:
+            equip_qty = equip.quantity or 1
+            template = equip.equipment_template
+            
+            selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+            for pt in selected_points:
+                etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+                sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+                if not sub_points:
+                    panel_summary['UNKNOWN'] = panel_summary.get('UNKNOWN', 0) + point_repeat
+                else:
+                    for sp in sub_points:
+                        panel_summary[sp.point_type] = panel_summary.get(sp.point_type, 0) + point_repeat
+
+        panel_data.append({
+            'id': panel.id,
+            'name': panel.panel_name,
+            'floor': panel.floor,
+            'points': panel_summary
+        })
+
+    # Get existing controller selections
+    existing_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    selections = [sel.to_dict() for sel in existing_selections]
+
+    # Get all available controller types
+    controller_types = ControllerType.query.all()
+    
+    return jsonify({
+        'panels': panel_data,
+        'controller_types': [ct.to_dict() for ct in controller_types],
+        'existing_selections': selections
+    }), 200
+
+@app.route('/api/projects/<int:project_id>/controller_selection/optimize', methods=['POST'])
+@login_required
+def optimize_controller_selection(project_id):
+    """Optimize controller selection for panels."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    server_panels = data.get('server_panels', [])  # List of panel IDs selected as servers
+    
+    # Clear existing auto-optimized selections
+    ControllerSelection.query.filter_by(project_id=project_id, is_auto_optimized=True).delete()
+    
+    # Mark server panels
+    for panel_id in server_panels:
+        server_controller = ControllerType.query.filter_by(is_server=True).first()
+        if server_controller:
+            selection = ControllerSelection(
+                project_id=project_id,
+                panel_id=panel_id,
+                controller_type_id=server_controller.id,
+                quantity=1,
+                is_server_selection=True,
+                is_auto_optimized=False
+            )
+            db.session.add(selection)
+
+    # Get panels that need optimization (not server panels)
+    panels_to_optimize = Panel.query.filter(
+        Panel.project_id == project_id,
+        ~Panel.id.in_(server_panels)
+    ).all()
+
+    # Run optimization algorithm
+    optimization_result = run_controller_optimization(project_id, panels_to_optimize)
+    
+    # Save optimization results
+    for panel_id, controller_selection in optimization_result.items():
+        selection = ControllerSelection(
+            project_id=project_id,
+            panel_id=panel_id,
+            controller_type_id=controller_selection['controller_type_id'],
+            quantity=controller_selection['quantity'],
+            is_server_selection=False,
+            is_auto_optimized=True
+        )
+        db.session.add(selection)
+
+    db.session.commit()
+    
+    # Return updated selection data
+    return get_controller_selection_data(project_id)
+
+def run_controller_optimization(project_id, panels):
+    """
+    Optimize controller selection for given panels.
+    This is a simplified optimization algorithm that selects the most cost-effective
+    controllers based on point requirements.
+    """
+    optimization_result = {}
+    
+    # Get all non-server controller types, sorted by cost efficiency
+    controller_types = ControllerType.query.filter_by(is_server=False).all()
+    
+    for panel in panels:
+        # Get panel point requirements
+        panel_points = get_panel_point_requirements(project_id, panel.id)
+        
+        # Find best controller for this panel
+        best_controller = find_optimal_controller(panel_points, controller_types)
+        
+        if best_controller:
+            optimization_result[panel.id] = {
+                'controller_type_id': best_controller['controller_id'],
+                'quantity': best_controller['quantity']
+            }
+    
+    return optimization_result
+
+def get_panel_point_requirements(project_id, panel_id):
+    """Get point requirements for a specific panel."""
+    requirements = {
+        'AI': 0, 'AO': 0, 'DI': 0, 'DO': 0, 'UI': 0
+    }
+    
+    equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel_id).all()
+    
+    for equip in equipments:
+        equip_qty = equip.quantity or 1
+        template = equip.equipment_template
+        
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+        for pt in selected_points:
+            etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+            sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+            for sp in sub_points:
+                point_type = sp.point_type.upper()
+                if point_type in requirements:
+                    requirements[point_type] += point_repeat
+    
+    return requirements
+
+def find_optimal_controller(point_requirements, controller_types):
+    """Find the most cost-effective controller for given point requirements."""
+    best_option = None
+    best_cost = float('inf')
+    
+    for controller in controller_types:
+        # Check if controller can handle the requirements
+        can_handle = (
+            controller.ai_capacity >= point_requirements['AI'] and
+            controller.ao_capacity >= point_requirements['AO'] and
+            controller.di_capacity >= point_requirements['DI'] and
+            controller.do_capacity >= point_requirements['DO'] and
+            controller.ui_capacity >= point_requirements['UI']
+        )
+        
+        if can_handle:
+            # Calculate total points needed
+            total_points = sum(point_requirements.values())
+            
+            # Check if total points are within controller limit
+            if controller.max_points_total == 0 or total_points <= controller.max_points_total:
+                # Calculate quantity needed (for now assume 1, could be enhanced)
+                quantity = 1
+                total_cost = controller.cost * quantity
+                
+                if total_cost < best_cost:
+                    best_cost = total_cost
+                    best_option = {
+                        'controller_id': controller.id,
+                        'quantity': quantity,
+                        'cost': total_cost
+                    }
+    
+    return best_option
+
+@app.route('/api/projects/<int:project_id>/controller_selection/boq', methods=['GET'])
+@login_required
+def generate_controller_boq(project_id):
+    """Generate Bill of Quantities for controllers and field devices."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get controller selections
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    # Generate controller BOQ
+    controller_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        controller = selection.controller_type
+        part_num = controller.part_number
+        
+        if part_num not in controller_boq:
+            controller_boq[part_num] = {
+                'name': controller.name,
+                'part_number': part_num,
+                'quantity': 0,
+                'unit_cost': controller.cost,
+                'total_cost': 0,
+                'is_server': controller.is_server
+            }
+        
+        controller_boq[part_num]['quantity'] += selection.quantity
+        controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+        total_controller_cost += selection.quantity * controller.cost
+
+    # Generate field devices BOQ (from scheduled equipment)
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                # Calculate quantity needed
+                etp = EquipmentTemplatePoint.query.filter_by(
+                    equipment_template_id=equip.equipment_template_id, 
+                    point_template_id=pt.id
+                ).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                total_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += total_qty
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += total_qty * (part.cost or 0)
+
+    return jsonify({
+        'controller_boq': list(controller_boq.values()),
+        'field_devices_boq': list(field_devices_boq.values()),
+        'total_controller_cost': total_controller_cost,
+        'total_field_cost': total_field_cost,
+        'grand_total': total_controller_cost + total_field_cost
+    }), 200
+
 # --- SOCKET.IO ---
 
 # Store active users per project
@@ -935,6 +1311,58 @@ def setup_database(app):
             db.session.add(admin_user)
             db.session.commit()
             print("Created default admin user: admin/admin123")
+        
+        # Create default controller types if none exist
+        if ControllerType.query.count() == 0:
+            default_controllers = [
+                {
+                    'name': 'BACnet Server Controller',
+                    'part_number': 'SRV-BAC-01',
+                    'ai_capacity': 0, 'ao_capacity': 0, 'di_capacity': 0, 'do_capacity': 0, 'ui_capacity': 0,
+                    'cost': 2500.0,
+                    'is_server': True,
+                    'max_points_total': 0
+                },
+                {
+                    'name': 'Universal Controller 32 Points',
+                    'part_number': 'UC-32',
+                    'ai_capacity': 16, 'ao_capacity': 8, 'di_capacity': 16, 'do_capacity': 8, 'ui_capacity': 8,
+                    'cost': 850.0,
+                    'is_server': False,
+                    'max_points_total': 32
+                },
+                {
+                    'name': 'Universal Controller 64 Points',
+                    'part_number': 'UC-64',
+                    'ai_capacity': 32, 'ao_capacity': 16, 'di_capacity': 32, 'do_capacity': 16, 'ui_capacity': 16,
+                    'cost': 1450.0,
+                    'is_server': False,
+                    'max_points_total': 64
+                },
+                {
+                    'name': 'I/O Controller 24 Points',
+                    'part_number': 'IO-24',
+                    'ai_capacity': 8, 'ao_capacity': 4, 'di_capacity': 12, 'do_capacity': 8, 'ui_capacity': 4,
+                    'cost': 650.0,
+                    'is_server': False,
+                    'max_points_total': 24
+                },
+                {
+                    'name': 'Advanced Controller 128 Points',
+                    'part_number': 'ADV-128',
+                    'ai_capacity': 64, 'ao_capacity': 32, 'di_capacity': 64, 'do_capacity': 32, 'ui_capacity': 32,
+                    'cost': 2200.0,
+                    'is_server': False,
+                    'max_points_total': 128
+                }
+            ]
+            
+            for controller_data in default_controllers:
+                controller = ControllerType(**controller_data)
+                db.session.add(controller)
+            
+            db.session.commit()
+            print("Created default controller types")
         
         # Deduplicate global parts on first run after migration (keep lowest id)
         from sqlalchemy import func
