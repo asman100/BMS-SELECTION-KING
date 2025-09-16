@@ -1574,7 +1574,7 @@ def generate_controller_boq(project_id):
 @app.route('/api/projects/<int:project_id>/controller_selection/point_list', methods=['GET'])
 @login_required
 def generate_point_list(project_id):
-    """Generate point list showing equipment with their I/O points by panel."""
+    """Generate detailed point list showing equipment-point breakdown by panel."""
     project = Project.query.get_or_404(project_id)
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
@@ -1582,16 +1582,21 @@ def generate_point_list(project_id):
     # Get all scheduled equipment for the project
     scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
     
-    point_list = []
+    # Group by panel
+    panels_data = {}
     
     for equip in scheduled_equipments:
         # Get panel information from relationship
         panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
         floor = equip.panel.floor if equip.panel else "Unknown Floor"
         
-        # Initialize point counts
-        total_di = total_do = total_ai = total_ao = 0
-        communication_types = set()
+        if panel_name not in panels_data:
+            panels_data[panel_name] = {
+                'panel_name': panel_name,
+                'floor': floor,
+                'equipment_points': [],
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+            }
         
         # Get selected points for this equipment
         selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
@@ -1605,55 +1610,70 @@ def generate_point_list(project_id):
             per_template_qty = etp.quantity if etp and etp.quantity else 1
             point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
             
-            # Count points by type from sub_points
+            # Get individual point data from sub_points
             for sub_point in pt.sub_points:
                 point_type = sub_point.point_type.upper()
+                
+                # Determine communication type - only show protocol if it's a software point
+                communication = ""
+                if hasattr(pt, 'part_number') and pt.part_number:
+                    # Check if it's a software/network point based on part number patterns
+                    part_num = pt.part_number.upper()
+                    if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        if point_type in ['AI', 'AO']:
+                            communication = "BACnet"
+                        else:
+                            communication = "Modbus"
+                
+                # Create individual point entry
+                point_counts = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
                 if point_type == 'DI':
-                    total_di += point_qty
+                    point_counts['di'] = point_qty
                 elif point_type == 'DO':
-                    total_do += point_qty
+                    point_counts['do'] = point_qty
                 elif point_type == 'AI':
-                    total_ai += point_qty
+                    point_counts['ai'] = point_qty
                 elif point_type == 'AO':
-                    total_ao += point_qty
-                    
-                # Determine communication type (assume BACnet for smart devices, Modbus for basic I/O)
-                if point_type in ['AI', 'AO']:
-                    communication_types.add('BACnet')
-                else:
-                    communication_types.add('Modbus')
-        
-        # Default to BACnet if no specific communication type determined
-        if not communication_types:
-            communication_types.add('BACnet')
-            
-        communication = '/'.join(sorted(communication_types))
-        
-        point_list.append({
-            'panel_name': panel_name,
-            'floor': floor,
-            'equipment_name': equip.instance_name,
-            'equipment_type': equip.equipment_template.type_key if equip.equipment_template else 'Unknown',
-            'quantity': equip.quantity,
-            'di': total_di,
-            'do': total_do,
-            'ai': total_ai,
-            'ao': total_ao,
-            'communication': communication
-        })
+                    point_counts['ao'] = point_qty
+                
+                panels_data[panel_name]['equipment_points'].append({
+                    'equipment_name': equip.instance_name,
+                    'point_name': pt.name,
+                    'point_type': point_type,
+                    'part_number': getattr(pt, 'part_number', '') or '',
+                    'di': point_counts['di'],
+                    'do': point_counts['do'],
+                    'ai': point_counts['ai'],
+                    'ao': point_counts['ao'],
+                    'communication': communication
+                })
+                
+                # Add to panel totals
+                panels_data[panel_name]['panel_totals']['di'] += point_counts['di']
+                panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
+                panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
+                panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
     
-    # Sort by panel name, then by equipment name
-    point_list.sort(key=lambda x: (x['panel_name'], x['equipment_name']))
+    # Convert to list and sort by panel name
+    panels_list = list(panels_data.values())
+    panels_list.sort(key=lambda x: x['panel_name'])
+    
+    # Calculate grand totals
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+    total_equipment_points = 0
+    
+    for panel_data in panels_list:
+        panel_totals = panel_data['panel_totals']
+        grand_totals['di'] += panel_totals['di']
+        grand_totals['do'] += panel_totals['do']
+        grand_totals['ai'] += panel_totals['ai']
+        grand_totals['ao'] += panel_totals['ao']
+        total_equipment_points += len(panel_data['equipment_points'])
     
     return jsonify({
-        'point_list': point_list,
-        'total_equipment': len(point_list),
-        'summary': {
-            'total_di': sum(item['di'] for item in point_list),
-            'total_do': sum(item['do'] for item in point_list),
-            'total_ai': sum(item['ai'] for item in point_list),
-            'total_ao': sum(item['ao'] for item in point_list)
-        }
+        'panels': panels_list,
+        'total_equipment_points': total_equipment_points,
+        'grand_totals': grand_totals
     }), 200
 
 # --- SOCKET.IO ---

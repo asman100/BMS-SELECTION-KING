@@ -1007,22 +1007,20 @@
             const container = document.getElementById('point-list-table');
             const summaryContainer = document.getElementById('point-summary');
 
-            if (!data.point_list || data.point_list.length === 0) {
+            if (!data.panels || data.panels.length === 0) {
                 container.innerHTML = '<div class="empty-state"><p>No equipment points found.</p></div>';
                 summaryContainer.innerHTML = '';
                 return;
             }
 
-            // Create point list table
+            // Create point list table with panel-grouped format
             let tableHtml = `
                 <table class="boq-table">
                     <thead>
                         <tr>
                             <th>Panel Name</th>
-                            <th>Floor</th>
-                            <th>Equipment</th>
-                            <th>Type</th>
-                            <th>Qty</th>
+                            <th>Equipment - Point Name</th>
+                            <th>Part Number</th>
                             <th>DI</th>
                             <th>DO</th>
                             <th>AI</th>
@@ -1033,32 +1031,58 @@
                     <tbody>
             `;
 
-            data.point_list.forEach(item => {
+            data.panels.forEach(panel => {
+                // Panel header row
                 tableHtml += `
-                    <tr>
-                        <td><strong>${item.panel_name}</strong></td>
-                        <td>${item.floor}</td>
-                        <td>${item.equipment_name}</td>
-                        <td>${item.equipment_type}</td>
-                        <td>${item.quantity}</td>
-                        <td>${item.di}</td>
-                        <td>${item.do}</td>
-                        <td>${item.ai}</td>
-                        <td>${item.ao}</td>
-                        <td>${item.communication}</td>
+                    <tr class="panel-header" style="background-color: #e3f2fd; font-weight: bold;">
+                        <td colspan="8"><strong>${panel.panel_name}</strong></td>
+                    </tr>
+                `;
+
+                // Equipment point rows
+                panel.equipment_points.forEach(point => {
+                    const equipPointName = `${point.equipment_name} - ${point.point_name}`;
+                    tableHtml += `
+                        <tr>
+                            <td></td>
+                            <td>${equipPointName}</td>
+                            <td>${point.part_number}</td>
+                            <td>${point.di}</td>
+                            <td>${point.do}</td>
+                            <td>${point.ai}</td>
+                            <td>${point.ao}</td>
+                            <td>${point.communication}</td>
+                        </tr>
+                    `;
+                });
+
+                // Panel total row
+                const totals = panel.panel_totals;
+                tableHtml += `
+                    <tr class="panel-total" style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">
+                        <td><strong>${panel.panel_name} Total</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td><strong>${totals.di}</strong></td>
+                        <td><strong>${totals.do}</strong></td>
+                        <td><strong>${totals.ai}</strong></td>
+                        <td><strong>${totals.ao}</strong></td>
+                        <td><strong>-</strong></td>
                     </tr>
                 `;
             });
 
-            // Add summary row
-            const summary = data.summary;
+            // Grand total row
+            const grandTotals = data.grand_totals;
             tableHtml += `
-                    <tr class="boq-total">
-                        <td colspan="5"><strong>TOTALS</strong></td>
-                        <td><strong>${summary.total_di}</strong></td>
-                        <td><strong>${summary.total_do}</strong></td>
-                        <td><strong>${summary.total_ai}</strong></td>
-                        <td><strong>${summary.total_ao}</strong></td>
+                    <tr class="boq-total" style="background-color: #e8f5e8; font-weight: bold; border-top: 3px solid #4caf50;">
+                        <td><strong>GRAND TOTALS</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td><strong>${grandTotals.di}</strong></td>
+                        <td><strong>${grandTotals.do}</strong></td>
+                        <td><strong>${grandTotals.ai}</strong></td>
+                        <td><strong>${grandTotals.ao}</strong></td>
                         <td><strong>-</strong></td>
                     </tr>
                 </tbody>
@@ -1070,14 +1094,15 @@
             // Display summary
             summaryContainer.innerHTML = `
                 <h4>Point Summary</h4>
-                <p><strong>Total Equipment Items:</strong> ${data.total_equipment}</p>
+                <p><strong>Total Equipment Points:</strong> ${data.total_equipment_points}</p>
                 <p><strong>Total I/O Points:</strong> 
-                   DI: ${summary.total_di}, 
-                   DO: ${summary.total_do}, 
-                   AI: ${summary.total_ai}, 
-                   AO: ${summary.total_ao}
+                   DI: ${grandTotals.di}, 
+                   DO: ${grandTotals.do}, 
+                   AI: ${grandTotals.ai}, 
+                   AO: ${grandTotals.ao}
                 </p>
-                <p><strong>Grand Total Points:</strong> ${summary.total_di + summary.total_do + summary.total_ai + summary.total_ao}</p>
+                <p><strong>Grand Total Points:</strong> ${grandTotals.di + grandTotals.do + grandTotals.ai + grandTotals.ao}</p>
+                <p><strong>Number of Panels:</strong> ${data.panels.length}</p>
             `;
         }
 
@@ -1102,15 +1127,22 @@
             content += headers.join('\t') + '\n';
             content += '='.repeat(headers.join('\t').length) + '\n';
 
-            // Add data rows (skip header and total row)
-            for (let i = 1; i < rows.length - 1; i++) {
-                const cells = Array.from(rows[i].querySelectorAll('td')).map(td => td.textContent);
-                content += cells.join('\t') + '\n';
+            // Process rows by type (panel header, equipment points, panel totals, grand total)
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent);
+                
+                if (row.classList.contains('panel-header')) {
+                    content += '\n' + cells[0] + '\n';
+                    content += '-'.repeat(cells[0].length) + '\n';
+                } else if (row.classList.contains('panel-total')) {
+                    content += cells.join('\t') + '\n\n';
+                } else if (row.classList.contains('boq-total')) {
+                    content += cells.join('\t') + '\n';
+                } else {
+                    content += cells.join('\t') + '\n';
+                }
             }
-
-            // Add totals
-            const totalRow = Array.from(rows[rows.length - 1].querySelectorAll('td')).map(td => td.textContent);
-            content += '\n' + totalRow.join('\t') + '\n';
 
             // Add summary
             content += '\n' + summaryContainer.textContent.replace(/\s+/g, ' ').trim() + '\n';
