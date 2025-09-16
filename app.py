@@ -103,10 +103,11 @@ class EquipmentTemplate(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     type_key = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(120), nullable=False)
+    category = db.Column(db.String(120), nullable=True)  # New category field
     available_points = db.relationship('EquipmentTemplatePoint', backref='equipment_template', lazy='dynamic', cascade="all, delete-orphan")
 
     def to_dict(self):
-        return {"id": self.id, "type_key": self.type_key, "name": self.name, "points": [{"id": etp.point_template_id, "quantity": etp.quantity} for etp in self.available_points]}
+        return {"id": self.id, "type_key": self.type_key, "name": self.name, "category": self.category, "points": [{"id": etp.point_template_id, "quantity": etp.quantity} for etp in self.available_points]}
 
 selected_points_association = db.Table('selected_points',
     db.Column('scheduled_equipment_id', db.Integer, db.ForeignKey('scheduled_equipment.id')),
@@ -411,10 +412,12 @@ def project_summary(project_id):
     project_summary = {
         'project_name': project.name,
         'total_points': {},
-        'panels': []
+        'panels': [],
+        'equipment_summary': {}  # New equipment summary
     }
     
     total_summary = {}
+    equipment_summary = {}
     
     for panel in panels:
         panel_summary = {}
@@ -423,6 +426,21 @@ def project_summary(project_id):
         for equip in equipments:
             equip_qty = equip.quantity or 1
             template = equip.equipment_template
+            
+            # Add to equipment summary
+            category = template.category or 'Uncategorized'
+            if category not in equipment_summary:
+                equipment_summary[category] = {
+                    'count': 0,
+                    'equipment': []
+                }
+            equipment_summary[category]['count'] += equip_qty
+            equipment_summary[category]['equipment'].append({
+                'name': equip.instance_name,
+                'type': template.name,
+                'quantity': equip_qty
+            })
+            
             selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
 
             for pt in selected_points:
@@ -447,6 +465,7 @@ def project_summary(project_id):
         })
     
     project_summary['total_points'] = total_summary
+    project_summary['equipment_summary'] = equipment_summary
     return jsonify(project_summary), 200
 
 @app.route('/summary/<int:project_id>')
@@ -627,7 +646,12 @@ def add_equipment_template(project_id):
     if existing:
         return jsonify({"error": f"Equipment type key '{data['typeKey']}' already exists."}), 409
 
-    new_template = EquipmentTemplate(type_key=data['typeKey'], name=data['name'], project_id=project_id)  # project_id retained for ownership metadata only
+    new_template = EquipmentTemplate(
+        type_key=data['typeKey'], 
+        name=data['name'], 
+        category=data.get('category'),  # Add category support
+        project_id=project_id
+    )  # project_id retained for ownership metadata only
     for point_data in data['points']:
         point = PointTemplate.query.get(point_data['id'])
         if point:
@@ -658,6 +682,7 @@ def update_equipment_template(project_id, key):
 
     template.name = data['name']
     template.type_key = new_key
+    template.category = data.get('category')  # Add category support
     template.available_points = []
     for point_data in data['points']:
         point = PointTemplate.query.get(point_data['id'])
@@ -687,7 +712,12 @@ def replicate_equipment_template(project_id, id):
         i += 1
     new_name = f"{original.name} (Copy {i})"
     
-    replicated = EquipmentTemplate(type_key=new_key, name=new_name, project_id=project_id)
+    replicated = EquipmentTemplate(
+        type_key=new_key, 
+        name=new_name, 
+        category=original.category,  # Copy category
+        project_id=project_id
+    )
     for etp in original.available_points:
         replicated.available_points.append(EquipmentTemplatePoint(point=etp.point, quantity=etp.quantity))
     

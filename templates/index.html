@@ -721,12 +721,14 @@
 
         .modal-list-pane {
             flex: 1;
-            min-width: 250px;
+            min-width: 300px;
+            flex-shrink: 0;
         }
 
         .modal-form-pane {
-            flex: 2;
-            min-width: 400px;
+            flex: 1;
+            min-width: 350px;
+            flex-shrink: 1;
         }
 
         #template-list li,
@@ -940,6 +942,10 @@
                         <div class="form-row">
                             <div class="form-group"><label for="template-name">Display Name</label><input type="text" id="template-name" required></div>
                             <div class="form-group"><label for="template-key">Type Key</label><input type="text" id="template-key" required></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="template-category">Category</label>
+                            <input type="text" id="template-category" placeholder="e.g., Air Handling Units, Fan Coil Units, Pumps">
                         </div>
                         <div class="form-group">
                             <label>Assigned Points</label>
@@ -1585,6 +1591,7 @@
         editingTemplateKeyInput.value = id;
         templateForm["template-name"].value = template.name;
         templateForm["template-key"].value = template.type_key;
+        templateForm["template-category"].value = template.category || "";  // Load category
         templateFormTitle.textContent = `Editing: ${template.name}`;
         templateForm.querySelector("button").textContent = "Update Template";
 
@@ -1607,6 +1614,7 @@
         const data = {
             name: templateForm["template-name"].value,
             typeKey: templateForm["template-key"].value,
+            category: templateForm["template-category"].value,  // Include category
             points: points
         };
         const url = editingKey ? `/api/equipment_templates/${projectId}/${editingKey}` : `/api/equipment_templates/${projectId}`,
