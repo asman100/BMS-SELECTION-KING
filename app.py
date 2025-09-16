@@ -1203,12 +1203,27 @@ def generate_asp_solution(asp_server, requirements, server_modules):
         while True:
             # Check if this module helps with any remaining requirement
             helps = False
+            
+            # Direct capacity matches
             if (remaining_requirements['AI'] > 0 and module.ai_capacity > 0) or \
                (remaining_requirements['AO'] > 0 and module.ao_capacity > 0) or \
                (remaining_requirements['DI'] > 0 and module.di_capacity > 0) or \
-               (remaining_requirements['DO'] > 0 and module.do_capacity > 0) or \
-               (remaining_requirements['UI'] > 0 and module.ui_capacity > 0) or \
-               (sum(remaining_requirements.values()) > 0 and module.uio_capacity > 0):
+               (remaining_requirements['DO'] > 0 and module.do_capacity > 0):
+                helps = True
+            
+            # UI can be used for AI, AO, DI, DO requirements
+            if (remaining_requirements['AI'] > 0 and module.ui_capacity > 0) or \
+               (remaining_requirements['AO'] > 0 and module.ui_capacity > 0) or \
+               (remaining_requirements['DI'] > 0 and module.ui_capacity > 0) or \
+               (remaining_requirements['DO'] > 0 and module.ui_capacity > 0):
+                helps = True
+                
+            # Original UI requirement
+            if remaining_requirements['UI'] > 0 and module.ui_capacity > 0:
+                helps = True
+                
+            # UIO can be used for any remaining requirement
+            if sum(remaining_requirements.values()) > 0 and module.uio_capacity > 0:
                 helps = True
             
             if not helps:
@@ -1230,25 +1245,31 @@ def generate_asp_solution(asp_server, requirements, server_modules):
                 total_cost += accessory.cost
             
             # Update remaining requirements
+            # Handle direct capacity matches first
             remaining_requirements['AI'] = max(0, remaining_requirements['AI'] - module.ai_capacity)
             remaining_requirements['AO'] = max(0, remaining_requirements['AO'] - module.ao_capacity)
             remaining_requirements['DI'] = max(0, remaining_requirements['DI'] - module.di_capacity)
             remaining_requirements['DO'] = max(0, remaining_requirements['DO'] - module.do_capacity)
             remaining_requirements['UI'] = max(0, remaining_requirements['UI'] - module.ui_capacity)
             
+            # Use UI capacity for remaining AI, AO, DI, DO requirements (UI is flexible)
+            remaining_ui = module.ui_capacity
+            for req_type in ['AI', 'AO', 'DI', 'DO']:
+                if remaining_requirements[req_type] > 0 and remaining_ui > 0:
+                    reduction = min(remaining_requirements[req_type], remaining_ui)
+                    remaining_requirements[req_type] -= reduction
+                    remaining_ui -= reduction
+            
             # UIO can be used for any remaining requirement
             total_remaining = sum(remaining_requirements.values())
             if total_remaining > 0 and module.uio_capacity > 0:
                 reduction = min(total_remaining, module.uio_capacity)
                 # Proportionally reduce remaining requirements
-                if total_remaining > 0:
-                    for key in remaining_requirements:
-                        if remaining_requirements[key] > 0:
-                            reduction_for_type = min(remaining_requirements[key], reduction)
-                            remaining_requirements[key] -= reduction_for_type
-                            reduction -= reduction_for_type
-                            if reduction <= 0:
-                                break
+                for key in ['AI', 'AO', 'DI', 'DO', 'UI']:
+                    if remaining_requirements[key] > 0 and reduction > 0:
+                        reduction_for_type = min(remaining_requirements[key], reduction)
+                        remaining_requirements[key] -= reduction_for_type
+                        reduction -= reduction_for_type
             
             # Check if all requirements are met
             if sum(remaining_requirements.values()) == 0:
