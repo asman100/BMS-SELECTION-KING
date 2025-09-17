@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controller Selection - BMS Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c5282;
+            --secondary-color: #3182ce;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #e53e3e;
+            --background-color: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        .selection-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 1200px) {
+            .selection-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .selection-card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            margin-right: 1rem;
+            font-weight: bold;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .panel-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-item.server-selected {
+            border-color: var(--success-color);
+            background: #f0fff4;
+        }
+
+        .panel-info {
+            flex: 1;
+        }
+
+        .panel-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .panel-floor {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .panel-points {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .point-badge {
+            background: var(--secondary-color);
+            color: var(--white);
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .server-checkbox {
+            margin-left: 1rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            background: #2a4a6b;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: var(--white);
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: var(--white);
+        }
+
+        .btn-warning:hover {
+            background: #dd6b20;
+        }
+
+        .optimization-results {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .result-item.server {
+            background: #f0fff4;
+            border-color: var(--success-color);
+        }
+
+        .result-item.optimized {
+            background: #eff6ff;
+            border-color: var(--secondary-color);
+        }
+
+        .controller-info {
+            flex: 1;
+        }
+
+        .controller-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .controller-details {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .cost-info {
+            text-align: right;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .boq-section {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .boq-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .boq-table th,
+        .boq-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .boq-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .boq-total {
+            background: var(--primary-color);
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .notification {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .notification.success {
+            background: #f0fff4;
+            color: #2f855a;
+            border: 1px solid #9ae6b4;
+        }
+
+        .notification.warning {
+            background: #fffbeb;
+            color: #c05621;
+            border: 1px solid #fbb6ce;
+        }
+
+        .notification.error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .server-solution-option {
+            transition: all 0.2s ease;
+        }
+
+        .server-solution-option:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .selected-solution {
+            border-color: var(--success-color) !important;
+            background-color: #f0fff4 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Controller Selection</h1>
+            <p>Select server panels and optimize controller allocation</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>Loading panel data and controller types...</p>
+        </div>
+
+        <div id="notification-area"></div>
+
+        <div id="selection-content" style="display: none;">
+            <!-- First row: Available Controllers and Available Servers side by side -->
+            <div class="selection-grid">
+                <div class="selection-card">
+                    <div class="card-header">
+                        <div class="card-icon">🎛️</div>
+                        <div class="card-title">Available Controllers</div>
+                    </div>
+                    <div id="controllers-container">
+                        <!-- Controller types will be populated here -->
+                    </div>
+                </div>
+
+                <div class="selection-card">
+                    <div class="card-header">
+                        <div class="card-icon">🖥️</div>
+                        <div class="card-title">Available Servers</div>
+                    </div>
+                    <div id="servers-container">
+                        <!-- Server types will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Second row: Panel Configuration and Server Solution Configuration side by side -->
+            <div class="selection-grid">
+                <div class="selection-card">
+                    <div class="card-header">
+                        <div class="card-icon">🏢</div>
+                        <div class="card-title">Panel Configuration</div>
+                    </div>
+                    <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                        Select panels that will have server controllers. Server controllers coordinate the BMS network.
+                    </p>
+                    <div id="panels-container">
+                        <!-- Panels will be populated here -->
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button onclick="optimizeControllers()" class="btn btn-success">Optimize Controller Selection</button>
+                    </div>
+                </div>
+
+                <div class="selection-card" id="server-solution-card" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-icon">⚙️</div>
+                        <div class="card-title">Server Solution Configuration</div>
+                    </div>
+                    <div id="server-solution-container">
+                        <!-- Server solution configuration will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="optimization-results" class="optimization-results" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">✨</div>
+                    <div class="card-title">Optimization Results</div>
+                </div>
+                <div id="results-container">
+                    <!-- Results will be populated here -->
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button onclick="generateBOQ()" class="btn btn-primary">Generate BOQ Report</button>
+                </div>
+            </div>
+
+            <div id="boq-section" class="boq-section" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">📊</div>
+                    <div class="card-title">Bill of Quantities (BOQ)</div>
+                </div>
+                
+                <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Controllers & Accessories</h3>
+                <table id="controller-boq-table" class="boq-table">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Quantity</th>
+                            <th>Unit Cost</th>
+                            <th>Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="controller-boq-body">
+                        <!-- Controller BOQ will be populated here -->
+                    </tbody>
+                </table>
+
+                <h3 style="margin-top: 2rem; margin-bottom: 1rem;">Field Devices</h3>
+                <table id="field-devices-boq-table" class="boq-table">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Quantity</th>
+                            <th>Unit Cost</th>
+                            <th>Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="field-devices-boq-body">
+                        <!-- Field devices BOQ will be populated here -->
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 1rem; text-align: right;">
+                    <strong>Total Controllers: $<span id="total-controller-cost">0</span></strong><br>
+                    <strong>Total Field Devices: $<span id="total-field-cost">0</span></strong><br>
+                    <strong style="font-size: 1.2em;">Grand Total: $<span id="grand-total-cost">0</span></strong>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button onclick="exportBOQ()" class="btn btn-warning">Export BOQ</button>
+                    <button id="generate-point-list-btn" onclick="generatePointList()" class="btn btn-success generate-point-list-button" style="margin-left: 0.5rem; display: inline-block !important; visibility: visible !important; opacity: 1 !important;">Generate Point List</button>
+                </div>
+            </div>
+
+            <div id="point-list-section" class="boq-section" style="display: none;">
+                <div class="card-header">
+                    <div class="card-icon">📋</div>
+                    <div class="card-title">Equipment Point List</div>
+                </div>
+                
+                <div id="point-list-table">
+                    <!-- Point list table will be populated here -->
+                </div>
+
+                <div id="point-summary" style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 6px;">
+                    <!-- Point summary will be populated here -->
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button onclick="exportPointList()" class="btn btn-warning">Export Point List</button>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="/summary/{{ project_id }}" class="btn btn-secondary">Back to Summary</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project_id }};
+        let panelData = [];
+        let servers = [];
+        let controllers = [];
+        let serverModules = [];
+        let serverSolutions = {}; // Auto-generated optimal solutions for each panel
+        let selectedServerPanels = new Set();
+        let selectedSolutions = {}; // User-selected solution for each server panel
+        let optimizationResults = null;
+        let boqData = null;
+
+        async function loadControllerSelectionData() {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/controller_selection`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load controller selection data');
+                }
+
+                panelData = data.panels;
+                servers = data.servers;
+                controllers = data.controllers;
+                serverModules = data.server_modules;
+                serverSolutions = data.server_solutions || {};
+
+                displayPanels();
+                displayServers();
+                displayControllers();
+
+                // Hide loading and show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('selection-content').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading controller selection data:', error);
+                showNotification('Error loading data: ' + error.message, 'error');
+            }
+        }
+
+        function displayPanels() {
+            const container = document.getElementById('panels-container');
+            container.innerHTML = '';
+
+            if (panelData.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No panels configured for this project.</p></div>';
+                return;
+            }
+
+            panelData.forEach(panel => {
+                const panelDiv = document.createElement('div');
+                panelDiv.className = 'panel-item';
+                panelDiv.id = `panel-${panel.id}`;
+
+                let pointsHtml = '';
+                Object.entries(panel.points).forEach(([type, count]) => {
+                    pointsHtml += `<span class="point-badge">${type}: ${count}</span>`;
+                });
+
+                panelDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${panel.name}</div>
+                        <div class="panel-floor">${panel.floor}</div>
+                        <div class="panel-points">${pointsHtml || '<span class="point-badge">No points</span>'}</div>
+                    </div>
+                    <div class="server-checkbox">
+                        <label>
+                            <input type="checkbox" onchange="toggleServerPanel(${panel.id})" id="server-${panel.id}">
+                            Server Panel
+                        </label>
+                    </div>
+                `;
+
+                container.appendChild(panelDiv);
+            });
+        }
+
+        function displayServers() {
+            const container = document.getElementById('servers-container');
+            container.innerHTML = '';
+
+            if (servers.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No automation servers available.</p></div>';
+                return;
+            }
+
+            servers.forEach(server => {
+                const serverDiv = document.createElement('div');
+                serverDiv.className = 'panel-item';
+
+                const capacityInfo = [
+                    `AI: ${server.ai_capacity}`,
+                    `AO: ${server.ao_capacity}`,
+                    `DI: ${server.di_capacity}`,
+                    `DO: ${server.do_capacity}`,
+                    `UIO: ${server.uio_capacity}`
+                ].join(', ');
+
+                serverDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${server.name}</div>
+                        <div class="panel-floor">${server.part_number}</div>
+                        <div class="panel-points">
+                            <span class="point-badge">${capacityInfo}</span>
+                            <span class="point-badge">$${server.cost.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(serverDiv);
+            });
+        }
+
+        function displayControllers() {
+            const container = document.getElementById('controllers-container');
+            container.innerHTML = '';
+
+            if (controllers.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No controllers available.</p></div>';
+                return;
+            }
+
+            controllers.forEach(controller => {
+                const controllerDiv = document.createElement('div');
+                controllerDiv.className = 'panel-item';
+
+                const capacityInfo = [
+                    `AI: ${controller.ai_capacity}`,
+                    `AO: ${controller.ao_capacity}`,
+                    `DI: ${controller.di_capacity}`,
+                    `DO: ${controller.do_capacity}`,
+                    `UIO: ${controller.uio_capacity}`
+                ].join(', ');
+
+                controllerDiv.innerHTML = `
+                    <div class="panel-info">
+                        <div class="panel-name">${controller.name}</div>
+                        <div class="panel-floor">${controller.part_number}</div>
+                        <div class="panel-points">
+                            <span class="point-badge">${capacityInfo}</span>
+                            <span class="point-badge">$${controller.cost.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(controllerDiv);
+            });
+        }
+
+        function toggleServerPanel(panelId) {
+            const checkbox = document.getElementById(`server-${panelId}`);
+            const panelDiv = document.getElementById(`panel-${panelId}`);
+
+            if (checkbox.checked) {
+                selectedServerPanels.add(panelId);
+                panelDiv.classList.add('server-selected');
+                showServerSolutionSelection();
+            } else {
+                selectedServerPanels.delete(panelId);
+                panelDiv.classList.remove('server-selected');
+                delete selectedSolutions[panelId];
+                if (selectedServerPanels.size === 0) {
+                    hideServerSolutionSelection();
+                }
+            }
+            updateServerSolutionDisplay();
+        }
+
+        function showServerSolutionSelection() {
+            document.getElementById('server-solution-card').style.display = 'block';
+        }
+
+        function hideServerSolutionSelection() {
+            document.getElementById('server-solution-card').style.display = 'none';
+        }
+
+        function updateServerSolutionDisplay() {
+            const container = document.getElementById('server-solution-container');
+            container.innerHTML = '';
+
+            if (selectedServerPanels.size === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Select server panels to view optimal solutions.</p></div>';
+                return;
+            }
+
+            selectedServerPanels.forEach(panelId => {
+                const panel = panelData.find(p => p.id === panelId);
+                const solutions = serverSolutions[panelId] || [];
+                
+                if (!panel) return;
+
+                const solutionDiv = document.createElement('div');
+                solutionDiv.className = 'panel-item';
+                solutionDiv.style.marginBottom = '2rem';
+
+                let pointsHtml = '';
+                Object.entries(panel.points).forEach(([type, count]) => {
+                    pointsHtml += `<span class="point-badge">${type}: ${count}</span>`;
+                });
+
+                let solutionsHtml = '';
+                if (solutions.length === 0) {
+                    solutionsHtml = '<p style="color: #999;">No optimal solutions found for this panel configuration.</p>';
+                } else {
+                    solutionsHtml = '<h5>Optimal Server Solutions:</h5>';
+                    solutions.forEach((solution, index) => {
+                        const isSelected = selectedSolutions[panelId] && selectedSolutions[panelId].server_id === solution.server_id;
+                        const selectedClass = isSelected ? 'selected-solution' : '';
+                        
+                        solutionsHtml += `
+                            <div class="server-solution-option ${selectedClass}" onclick="selectServerSolution(${panelId}, ${index})" style="
+                                margin: 0.5rem 0; 
+                                padding: 1rem; 
+                                border: 2px solid ${isSelected ? 'var(--success-color)' : 'var(--border-color)'}; 
+                                border-radius: 8px; 
+                                cursor: pointer; 
+                                background: ${isSelected ? '#f0fff4' : 'white'};
+                                transition: all 0.2s ease;
+                            ">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${solution.description}</strong><br>
+                                        <small>Part: ${solution.server_part_number}</small>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <strong style="color: var(--primary-color); font-size: 1.2em;">$${solution.total_cost.toFixed(2)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                solutionDiv.innerHTML = `
+                    <div style="margin-bottom: 1rem;">
+                        <h4>${panel.name} - ${panel.floor}</h4>
+                        <div class="panel-points">${pointsHtml}</div>
+                    </div>
+                    <div>
+                        ${solutionsHtml}
+                    </div>
+                `;
+
+                container.appendChild(solutionDiv);
+            });
+        }
+
+        function selectServerSolution(panelId, solutionIndex) {
+            const solutions = serverSolutions[panelId] || [];
+            if (solutionIndex < solutions.length) {
+                selectedSolutions[panelId] = solutions[solutionIndex];
+                updateServerSolutionDisplay(); // Refresh to show selected state
+            }
+        }
+
+        async function optimizeControllers() {
+            try {
+                // Validate that all server panels have solutions selected
+                for (let panelId of selectedServerPanels) {
+                    if (!selectedSolutions[panelId]) {
+                        showNotification('Please select a server solution for all designated server panels before optimizing.', 'warning');
+                        return;
+                    }
+                }
+
+                showNotification('Optimizing controller selection...', 'success');
+
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/optimize`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        server_panels: Array.from(selectedServerPanels),
+                        selected_solutions: selectedSolutions
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to optimize controllers');
+                }
+
+                optimizationResults = data; // The 'data' object itself is what we need
+                displayOptimizationResults();
+
+                showNotification('Controller selection optimized successfully!', 'success');
+            } catch (error) {
+                console.error('Error optimizing controllers:', error);
+                showNotification('Error optimizing controllers: ' + error.message, 'error');
+            }
+        }
+
+        function displayOptimizationResults() {
+            const container = document.getElementById('results-container');
+            container.innerHTML = '';
+
+            // The backend now returns a full data object, not just the selections array
+            const selections = optimizationResults.existing_selections || [];
+
+            if (!selections || selections.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No optimization results available.</p></div>';
+                return;
+            }
+
+            let totalCost = 0;
+
+            selections.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `result-item ${result.is_server_selection ? 'server' : 'optimized'}`;
+
+                const cost = result.total_cost || 0;
+                totalCost += cost;
+
+                let detailsHtml = 'No controller required (0 points).';
+                let controllerName = 'No Controller Selected';
+                let serverName = '';
+
+                if (result.controller_type) {
+                    controllerName = result.controller_type.name;
+                    serverName = result.controller_type.name; // For server solutions
+                    const capacityInfo = [
+                        `AI: ${result.controller_type.ai_capacity}`,
+                        `AO: ${result.controller_type.ao_capacity}`,
+                        `DI: ${result.controller_type.di_capacity}`,
+                        `DO: ${result.controller_type.do_capacity}`,
+                        `UI: ${result.controller_type.ui_capacity}`,
+                        `UIO: ${result.controller_type.uio_capacity}`,
+                    ].join(', ');
+
+                    detailsHtml = `${result.controller_type.part_number} | ${capacityInfo} | Qty: ${result.quantity}`;
+                } else if (result.is_server_selection) {
+                    controllerName = 'Server Solution'; // This is a generic title
+                    detailsHtml = `Selected Server: ${serverName || 'N/A'}`;
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="controller-info">
+                        <div class="controller-name">
+                            ${result.panel_name} - ${controllerName}
+                            ${result.is_server_selection ? ' (Server)' : ' (Auto-optimized)'}
+                        </div>
+                        <div class="controller-details">
+                            ${detailsHtml}
+                        </div>
+                    </div>
+                    <div class="cost-info">
+                        $${cost.toFixed(2)}
+                    </div>
+                `;
+
+                container.appendChild(resultDiv);
+            });
+
+            // Add total cost
+            const totalDiv = document.createElement('div');
+            totalDiv.innerHTML = `
+                <div style="text-align: right; margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 6px;">
+                    <strong>Total Controller Cost: $${totalCost.toFixed(2)}</strong>
+                </div>
+            `;
+            container.appendChild(totalDiv);
+
+            document.getElementById('optimization-results').style.display = 'block';
+        }
+
+        // Enhanced BOQ generation to ensure button visibility
+        async function generateBOQ() {
+            try {
+                showNotification('Generating BOQ report...', 'success');
+
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/boq`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate BOQ');
+                }
+
+                const data = await response.json();
+                boqData = data;
+                displayBOQ();
+                
+                // Force show BOQ section and ensure Generate Point List button is visible
+                const boqSection = document.getElementById('boq-section');
+                if (boqSection) {
+                    boqSection.style.display = 'block';
+                }
+                
+                // Ensure Generate Point List button is visible with !important styling
+                ensurePointListButtonVisible();
+
+                showNotification('BOQ report generated successfully!', 'success');
+            } catch (error) {
+                console.error('Error generating BOQ:', error);
+                showNotification('Error generating BOQ: ' + error.message, 'error');
+            }
+        }
+
+        function ensurePointListButtonVisible() {
+            // Multiple attempts to ensure button visibility with different selectors
+            const buttonSelectors = [
+                'button[onclick="generatePointList()"]',
+                '#generate-point-list-btn',
+                '.generate-point-list-button'
+            ];
+            
+            buttonSelectors.forEach(selector => {
+                const button = document.querySelector(selector);
+                if (button) {
+                    button.style.setProperty('display', 'inline-block', 'important');
+                    button.style.setProperty('visibility', 'visible', 'important');
+                    button.style.setProperty('opacity', '1', 'important');
+                    button.disabled = false;
+                }
+            });
+            
+            // Additional delayed attempts
+            setTimeout(() => {
+                buttonSelectors.forEach(selector => {
+                    const button = document.querySelector(selector);
+                    if (button) {
+                        button.style.setProperty('display', 'inline-block', 'important');
+                        button.style.setProperty('visibility', 'visible', 'important');
+                        button.style.setProperty('opacity', '1', 'important');
+                        button.disabled = false;
+                    }
+                });
+            }, 100);
+        }
+
+        function displayBOQ() {
+            if (!boqData) {
+                console.log('No BOQ data available');
+                return;
+            }
+
+            try {
+                // Display controller BOQ (now includes servers, controllers, modules, and accessories)
+                const controllerBody = document.getElementById('controller-boq-body');
+                if (controllerBody) {
+                    controllerBody.innerHTML = '';
+
+                    if (boqData.controller_boq && Array.isArray(boqData.controller_boq)) {
+                        boqData.controller_boq.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.part_number || ''}</td>
+                                <td>${item.name || ''}</td>
+                                <td>${item.category || 'Controller'}</td>
+                                <td>${item.quantity || 0}</td>
+                                <td>$${(item.unit_cost || 0).toFixed(2)}</td>
+                                <td>$${(item.total_cost || 0).toFixed(2)}</td>
+                            `;
+                            controllerBody.appendChild(row);
+                        });
+                    }
+                }
+
+                // Display field devices BOQ
+                const fieldBody = document.getElementById('field-devices-boq-body');
+                if (fieldBody) {
+                    fieldBody.innerHTML = '';
+
+                    if (boqData.field_devices_boq && Array.isArray(boqData.field_devices_boq)) {
+                        boqData.field_devices_boq.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.part_number || ''}</td>
+                                <td>${item.name || ''}</td>
+                                <td>${item.category || ''}</td>
+                                <td>${item.quantity || 0}</td>
+                                <td>$${(item.unit_cost || 0).toFixed(2)}</td>
+                                <td>$${(item.total_cost || 0).toFixed(2)}</td>
+                            `;
+                            fieldBody.appendChild(row);
+                        });
+                    }
+                }
+
+                // Update totals safely
+                const totalControllerCost = document.getElementById('total-controller-cost');
+                const totalFieldCost = document.getElementById('total-field-cost');
+                const grandTotalCost = document.getElementById('grand-total-cost');
+                
+                if (totalControllerCost) {
+                    totalControllerCost.textContent = (boqData.total_controller_cost || 0).toFixed(2);
+                }
+                if (totalFieldCost) {
+                    totalFieldCost.textContent = (boqData.total_field_cost || 0).toFixed(2);
+                }
+                if (grandTotalCost) {
+                    grandTotalCost.textContent = (boqData.grand_total || 0).toFixed(2);
+                }
+
+                const boqSection = document.getElementById('boq-section');
+                if (boqSection) {
+                    boqSection.style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('Error displaying BOQ:', error);
+                showNotification('Error displaying BOQ data', 'error');
+            }
+        }
+
+        function exportBOQ() {
+            if (!boqData) {
+                showNotification('No BOQ data available to export', 'warning');
+                return;
+            }
+
+            let exportText = `BMS CONTROLLER SELECTION - BILL OF QUANTITIES\n`;
+            exportText += `Project ID: ${projectId}\n`;
+            exportText += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+            exportText += `CONTROLLERS:\n`;
+            exportText += `Part Number\tDescription\tQuantity\tUnit Cost\tTotal Cost\n`;
+            boqData.controller_boq.forEach(item => {
+                exportText += `${item.part_number}\t${item.name}\t${item.quantity}\t$${item.unit_cost.toFixed(2)}\t$${item.total_cost.toFixed(2)}\n`;
+            });
+            exportText += `\nTotal Controllers: $${boqData.total_controller_cost.toFixed(2)}\n\n`;
+
+            exportText += `FIELD DEVICES:\n`;
+            exportText += `Part Number\tDescription\tCategory\tQuantity\tUnit Cost\tTotal Cost\n`;
+            boqData.field_devices_boq.forEach(item => {
+                exportText += `${item.part_number}\t${item.name}\t${item.category}\t${item.quantity}\t$${item.unit_cost.toFixed(2)}\t$${item.total_cost.toFixed(2)}\n`;
+            });
+            exportText += `\nTotal Field Devices: $${boqData.total_field_cost.toFixed(2)}\n\n`;
+
+            exportText += `GRAND TOTAL: $${boqData.grand_total.toFixed(2)}\n`;
+
+            // Download as text file
+            const blob = new Blob([exportText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `controller_selection_boq_${projectId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function generatePointList() {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/controller_selection/point_list`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate point list');
+                }
+
+                displayPointList(data);
+                document.getElementById('point-list-section').style.display = 'block';
+
+                showNotification('Point list generated successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error generating point list:', error);
+                showNotification('Failed to generate point list: ' + error.message, 'error');
+            }
+        }
+
+        function displayPointList(data) {
+            const container = document.getElementById('point-list-table');
+            const summaryContainer = document.getElementById('point-summary');
+
+            if (!data.panels || data.panels.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No equipment points found.</p></div>';
+                summaryContainer.innerHTML = '';
+                return;
+            }
+
+            // Create point list table in the exact format shown in user's image
+            let tableHtml = `
+                <table class="boq-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #4472c4; color: white;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">PANEL NAME</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">NAME</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">PART NUMBER</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of DI</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of DO</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of AI</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of AO</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">SOFTWARE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.panels.forEach(panel => {
+                // Panel header row (light blue background)
+                tableHtml += `
+                    <tr style="background-color: #d9e2f3; font-weight: bold;">
+                        <td colspan="8" style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${panel.panel_name}</td>
+                    </tr>
+                `;
+
+                // Equipment point rows
+                panel.equipment_points.forEach(point => {
+                    const equipPointName = `${point.equipment_name} - ${point.point_name}`;
+                    tableHtml += `
+                        <tr style="background-color: white;">
+                            <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${equipPointName}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${point.part_number}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.di}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.do}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.ai}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.ao}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.communication}</td>
+                        </tr>
+                    `;
+                });
+
+                // Panel total row (gray background)
+                const totals = panel.panel_totals;
+                tableHtml += `
+                    <tr style="background-color: #f2f2f2; font-weight: bold;">
+                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${panel.panel_name} Total</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.di}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.do}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.ai}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.ao}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.communication || 0}</td>
+                    </tr>
+                `;
+            });
+
+            // Grand total row (green background)
+            const grandTotals = data.grand_totals;
+            tableHtml += `
+                    <tr style="background-color: #e2efda; font-weight: bold; border-top: 3px solid #70ad47;">
+                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">GRAND TOTALS</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.di}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.do}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.ai}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.ao}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.communication || 0}</td>
+                    </tr>
+                </tbody>
+            </table>
+            `;
+
+            container.innerHTML = tableHtml;
+
+            // Display summary
+            summaryContainer.innerHTML = `
+                <h4>Point Summary</h4>
+                <p><strong>Total Equipment Points:</strong> ${data.total_equipment_points}</p>
+                <p><strong>Total I/O Points:</strong> 
+                   DI: ${grandTotals.di}, 
+                   DO: ${grandTotals.do}, 
+                   AI: ${grandTotals.ai}, 
+                   AO: ${grandTotals.ao}
+                </p>
+                <p><strong>Grand Total Points:</strong> ${grandTotals.di + grandTotals.do + grandTotals.ai + grandTotals.ao}</p>
+                <p><strong>Number of Panels:</strong> ${data.panels.length}</p>
+            `;
+        }
+
+        function exportPointList() {
+            const container = document.getElementById('point-list-table');
+            const summaryContainer = document.getElementById('point-summary');
+            
+            if (!container.innerHTML.includes('boq-table')) {
+                showNotification('No point list to export. Generate the point list first.', 'warning');
+                return;
+            }
+
+            let content = "EQUIPMENT POINT LIST\n";
+            content += "===================\n\n";
+
+            // Extract data from the table
+            const table = container.querySelector('.boq-table');
+            const rows = table.querySelectorAll('tr');
+            
+            // Add header
+            const headers = Array.from(rows[0].querySelectorAll('th')).map(th => th.textContent);
+            content += headers.join('\t') + '\n';
+            content += '='.repeat(headers.join('\t').length) + '\n';
+
+            // Process rows by type (panel header, equipment points, panel totals, grand total)
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent);
+                
+                if (row.classList.contains('panel-header')) {
+                    content += '\n' + cells[0] + '\n';
+                    content += '-'.repeat(cells[0].length) + '\n';
+                } else if (row.classList.contains('panel-total')) {
+                    content += cells.join('\t') + '\n\n';
+                } else if (row.classList.contains('boq-total')) {
+                    content += cells.join('\t') + '\n';
+                } else {
+                    content += cells.join('\t') + '\n';
+                }
+            }
+
+            // Add summary
+            content += '\n' + summaryContainer.textContent.replace(/\s+/g, ' ').trim() + '\n';
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `point_list_project_${projectId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showNotification(message, type) {
+            const area = document.getElementById('notification-area');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            area.appendChild(notification);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        // Store the original displayBOQ function
+        const originalDisplayBOQ = displayBOQ;
+
+        // Enhanced BOQ display function to ensure point list button is always visible
+        function displayBOQEnhanced() {
+            originalDisplayBOQ(); // Call the original function
+            // Ensure Generate Point List button is visible
+            setTimeout(() => {
+                ensurePointListButtonVisible();
+            }, 100);
+        }
+
+        // Override the original displayBOQ to use the enhanced version
+        // This must be done after both functions are defined.
+        displayBOQ = displayBOQEnhanced;
+
+        // Real-time update handlers for immediate point data refresh
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            
+            socket.on('global_catalog_update', function(data) {
+                console.log('Global catalog updated:', data);
+                // Immediately refresh any open equipment template dialogs
+                setTimeout(() => {
+                    if (window.refreshEquipmentDialog) {
+                        window.refreshEquipmentDialog();
+                    }
+                }, 100);
+                showNotification('Point library updated in real-time', 'info');
+            });
+
+            socket.on('project_data_update', function(data) {
+                console.log('Project data updated:', data);
+                if (data.type && (data.type.includes('point') || data.type.includes('template'))) {
+                    // Refresh equipment template dialogs immediately
+                    setTimeout(() => {
+                        if (window.refreshEquipmentDialog) {
+                            window.refreshEquipmentDialog();
+                        }
+                    }, 100);
+                    showNotification('Equipment data updated', 'success');
+                }
+            });
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadControllerSelectionData);
+    </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
+import json
 from datetime import datetime
 
 # --- APP SETUP ---
@@ -143,6 +144,118 @@ class Panel(db.Model):
 
     def to_dict(self):
         return {"id": self.id, "panelName": self.panel_name, "floor": self.floor}
+
+# Controller Selection Models
+class ControllerType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False, unique=True)
+    ai_capacity = db.Column(db.Integer, default=0)
+    ao_capacity = db.Column(db.Integer, default=0)
+    di_capacity = db.Column(db.Integer, default=0)
+    do_capacity = db.Column(db.Integer, default=0)
+    ui_capacity = db.Column(db.Integer, default=0)  # Universal Inputs
+    uo_capacity = db.Column(db.Integer, default=0)  # Universal Outputs
+    uio_capacity = db.Column(db.Integer, default=0)  # Universal I/O
+    cost = db.Column(db.Float, nullable=False)
+    is_server = db.Column(db.Boolean, default=False)  # True for server controllers
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part_number": self.part_number,
+            "ai_capacity": self.ai_capacity,
+            "ao_capacity": self.ao_capacity,
+            "di_capacity": self.di_capacity,
+            "do_capacity": self.do_capacity,
+            "ui_capacity": self.ui_capacity,
+            "uo_capacity": self.uo_capacity,
+            "uio_capacity": self.uio_capacity,
+            "cost": self.cost,
+            "is_server": self.is_server
+        }
+
+class ServerModule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False, unique=True)
+    ai_capacity = db.Column(db.Integer, default=0)
+    ao_capacity = db.Column(db.Integer, default=0)
+    di_capacity = db.Column(db.Integer, default=0)
+    do_capacity = db.Column(db.Integer, default=0)
+    ui_capacity = db.Column(db.Integer, default=0)
+    uo_capacity = db.Column(db.Integer, default=0)
+    uio_capacity = db.Column(db.Integer, default=0)
+    cost = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "part_number": self.part_number,
+            "ai_capacity": self.ai_capacity,
+            "ao_capacity": self.ao_capacity,
+            "di_capacity": self.di_capacity,
+            "do_capacity": self.do_capacity,
+            "ui_capacity": self.ui_capacity,
+            "uo_capacity": self.uo_capacity,
+            "uio_capacity": self.uio_capacity,
+            "cost": self.cost
+        }
+
+class Accessory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    parent_part_number = db.Column(db.String(120), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    part_number = db.Column(db.String(120), nullable=False)
+    cost = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "parent_part_number": self.parent_part_number,
+            "name": self.name,
+            "part_number": self.part_number,
+            "cost": self.cost
+        }
+
+class ControllerSelection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    panel_id = db.Column(db.Integer, db.ForeignKey('panel.id'), nullable=False)
+    controller_type_id = db.Column(db.Integer, db.ForeignKey('controller_type.id'), nullable=True)
+    quantity = db.Column(db.Integer, default=1)
+    is_server_selection = db.Column(db.Boolean, default=False)  # User selected as server
+    is_auto_optimized = db.Column(db.Boolean, default=False)  # Auto-optimized selection
+    
+    # Server solution tracking
+    server_modules = db.Column(db.Text)  # JSON string of selected modules for server panels
+    total_cost = db.Column(db.Float, default=0)  # Total cost including accessories
+    
+    controller_type = db.relationship('ControllerType')
+    panel = db.relationship('Panel')
+
+    def to_dict(self):
+        result = {
+            "id": self.id,
+            "project_id": self.project_id,
+            "panel_id": self.panel_id,
+            "panel_name": self.panel.panel_name,
+            "quantity": self.quantity,
+            "is_server_selection": self.is_server_selection,
+            "is_auto_optimized": self.is_auto_optimized,
+            "total_cost": self.total_cost or 0
+        }
+        
+        if self.controller_type:
+            result["controller_type"] = self.controller_type.to_dict()
+        
+        if self.server_modules:
+            import json
+            result["server_modules"] = json.loads(self.server_modules)
+            
+        return result
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -477,6 +590,16 @@ def summary_page(project_id):
         flash("You do not have permission to access this project.", "danger")
         return redirect(url_for('project_selection'))
     return render_template('summary.html', project_id=project.id)
+
+@app.route('/controller_selection/<int:project_id>')
+@login_required
+def controller_selection_page(project_id):
+    """Render the controller selection page."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('controller_selection.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):
@@ -798,6 +921,893 @@ def list_equipment_templates():
 def list_point_templates():
     return jsonify({pt.id: pt.to_dict() for pt in PointTemplate.query.all()}), 200
 
+# --- CONTROLLER SELECTION API ENDPOINTS ---
+
+@app.route('/api/controller_types', methods=['GET'])
+@login_required
+def list_controller_types():
+    """Get all available controller types."""
+    controller_types = ControllerType.query.all()
+    return jsonify([ct.to_dict() for ct in controller_types]), 200
+
+@app.route('/api/controller_types', methods=['POST'])
+@login_required
+def add_controller_type():
+    """Add a new controller type (admin only)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+    
+    data = request.get_json()
+    
+    # Check if part number already exists
+    if ControllerType.query.filter_by(part_number=data['part_number']).first():
+        return jsonify({"error": f"Controller part number '{data['part_number']}' already exists."}), 409
+    
+    controller_type = ControllerType(
+        name=data['name'],
+        part_number=data['part_number'],
+        ai_capacity=data.get('ai_capacity', 0),
+        ao_capacity=data.get('ao_capacity', 0),
+        di_capacity=data.get('di_capacity', 0),
+        do_capacity=data.get('do_capacity', 0),
+        ui_capacity=data.get('ui_capacity', 0),
+        cost=data['cost'],
+        is_server=data.get('is_server', False),
+        max_points_total=data.get('max_points_total', 0)
+    )
+    
+    db.session.add(controller_type)
+    db.session.commit()
+    
+    return jsonify(controller_type.to_dict()), 201
+
+@app.route('/api/projects/<int:project_id>/controller_selection', methods=['GET'])
+@login_required
+def get_controller_selection_data(project_id):
+    """Get controller selection data for a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get panel summary data (reuse existing endpoint logic)
+    panels = Panel.query.filter_by(project_id=project_id).all()
+    panel_data = []
+    
+    for panel in panels:
+        panel_summary = {}
+        equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel.id).all()
+        
+        for equip in equipments:
+            equip_qty = equip.quantity or 1
+            template = equip.equipment_template
+            
+            selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+            for pt in selected_points:
+                etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+                sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+                if not sub_points:
+                    panel_summary['UNKNOWN'] = panel_summary.get('UNKNOWN', 0) + point_repeat
+                else:
+                    for sp in sub_points:
+                        panel_summary[sp.point_type] = panel_summary.get(sp.point_type, 0) + point_repeat
+
+        panel_data.append({
+            'id': panel.id,
+            'name': panel.panel_name,
+            'floor': panel.floor,
+            'points': panel_summary
+        })
+
+    # Get existing controller selections
+    existing_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    selections = [sel.to_dict() for sel in existing_selections]
+
+    # Get all available controller types and server modules
+    servers = ControllerType.query.filter_by(is_server=True).all()
+    controllers = ControllerType.query.filter_by(is_server=False).all()
+    server_modules = ServerModule.query.all()
+    
+    # Generate optimal server solutions for each panel
+    server_solutions = {}
+    for panel in panel_data:
+        if panel['points']:  # Only generate solutions for panels with points
+            server_solutions[panel['id']] = generate_optimal_server_solutions(panel['points'])
+    
+    return jsonify({
+        'panels': panel_data,
+        'servers': [s.to_dict() for s in servers],
+        'controllers': [c.to_dict() for c in controllers],
+        'server_modules': [m.to_dict() for m in server_modules],
+        'existing_selections': selections,
+        'server_solutions': server_solutions
+    }), 200
+
+@app.route('/api/projects/<int:project_id>/controller_selection/optimize', methods=['POST'])
+@login_required
+def optimize_controller_selection(project_id):
+    """Optimize controller selection for panels."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    server_panels = data.get('server_panels', [])  # List of panel IDs selected as servers
+    selected_solutions = data.get('selected_solutions', {})  # Selected solution for each server panel
+    
+    # Clear existing selections for this project
+    ControllerSelection.query.filter_by(project_id=project_id).delete()
+    
+    # Handle server panels with selected solutions
+    for panel_id in server_panels:
+        panel_id = int(panel_id)
+        if str(panel_id) in selected_solutions:
+            solution = selected_solutions[str(panel_id)]
+            
+            # Create modules list from the solution
+            modules = solution.get('modules', [])
+            modules_json = json.dumps(modules)
+            
+            selection = ControllerSelection(
+                project_id=project_id,
+                panel_id=panel_id,
+                controller_type_id=solution['server_id'],
+                quantity=1,
+                is_server_selection=True,
+                is_auto_optimized=False,
+                server_modules=modules_json,
+                total_cost=solution['total_cost']
+            )
+            db.session.add(selection)
+
+    # Get panels that need optimization (not server panels)
+    panels_to_optimize = Panel.query.filter(
+        Panel.project_id == project_id,
+        ~Panel.id.in_(server_panels)
+    ).all()
+
+    # Run optimization algorithm for non-server panels
+    optimization_result = run_controller_optimization(project_id, panels_to_optimize)
+    
+    # Save optimization results
+    for panel_id, controller_selection in optimization_result.items():
+        total_cost = calculate_controller_cost_with_accessories(controller_selection['controller_type_id'])
+        
+        selection = ControllerSelection(
+            project_id=project_id,
+            panel_id=panel_id,
+            controller_type_id=controller_selection['controller_type_id'],
+            quantity=controller_selection['quantity'],
+            is_server_selection=False,
+            is_auto_optimized=True,
+            total_cost=total_cost
+        )
+        db.session.add(selection)
+
+    db.session.commit()
+    
+    # Return updated selection data
+    return get_controller_selection_data(project_id)
+
+def calculate_server_solution_cost(server_type_id, selected_modules):
+    """Calculate total cost for a server solution including modules and accessories."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"calculate_server_solution_cost called with server_type_id: {server_type_id}")
+    import json
+    
+    total_cost = 0
+    
+    # Add server cost
+    server = ControllerType.query.get(server_type_id)
+    if server:
+        total_cost += server.cost
+        
+        # Add server accessories
+        server_accessories = Accessory.query.filter_by(parent_part_number=server.part_number).all()
+        for accessory in server_accessories:
+            total_cost += accessory.cost
+    
+    # Add modules cost
+    for module_data in selected_modules:
+        module = ServerModule.query.get(module_data.get('id'))
+        if module:
+            quantity = module_data.get('quantity', 1)
+            total_cost += module.cost * quantity
+            
+            # Add module accessories
+            module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+            for accessory in module_accessories:
+                total_cost += accessory.cost * quantity
+    
+    return total_cost
+
+def calculate_controller_cost_with_accessories(controller_type_id):
+    """Calculate total cost for a controller including accessories."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"calculate_controller_cost_with_accessories called with controller_type_id: {controller_type_id}")
+    total_cost = 0
+    
+    controller = ControllerType.query.get(controller_type_id)
+    if controller:
+        total_cost += controller.cost
+        
+        # Add controller accessories
+        accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+        for accessory in accessories:
+            total_cost += accessory.cost
+    
+    return total_cost
+
+def generate_optimal_server_solutions(panel_points):
+    """Generate optimal server solutions for a panel based on its I/O requirements."""
+    solutions = []
+    
+    # Convert point requirements to standard format
+    requirements = {
+        'AI': panel_points.get('AI', 0),
+        'AO': panel_points.get('AO', 0),
+        'DI': panel_points.get('DI', 0),
+        'DO': panel_points.get('DO', 0),
+        'UI': panel_points.get('UI', 0)
+    }
+    
+    # Get all servers and modules
+    servers = ControllerType.query.filter_by(is_server=True).all()
+    server_modules = ServerModule.query.all()
+    
+    # Generate AS-P solutions (scalable with modules)
+    asp_server = next((s for s in servers if 'AS-P' in s.name), None)
+    if asp_server:
+        try:
+            asp_solution = generate_asp_solution(asp_server, requirements, server_modules)
+            if asp_solution:
+                solutions.append(asp_solution)
+        except Exception as e:
+            import logging
+            logging.basicConfig(level=logging.ERROR)
+            logging.error(f"Error generating AS-P solution: {e}")
+    
+    # Generate AS-B solutions (fixed capacity)
+    asb_servers = [s for s in servers if 'AS-B' in s.name]
+    for asb_server in asb_servers:
+        asb_solution = generate_asb_solution(asb_server, requirements)
+        if asb_solution:
+            solutions.append(asb_solution)
+    
+    # Sort by cost
+    solutions.sort(key=lambda x: x['total_cost'])
+    
+    return solutions
+
+def generate_asp_solution(asp_server, requirements, server_modules):
+    """Generate AS-P solution with optimal module configuration."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"generate_asp_solution called with requirements: {requirements}")
+    logging.info(f"server_modules: {[m.to_dict() for m in server_modules]}")
+    if not asp_server:
+        return None
+
+    # Start with base server cost and accessories
+    total_cost = asp_server.cost
+    accessories = Accessory.query.filter_by(parent_part_number=asp_server.part_number).all()
+    for accessory in accessories:
+        total_cost += accessory.cost
+
+    # Find optimal module combination
+    required_modules = []
+    remaining_requirements = requirements.copy()
+
+    # Sort modules by a composite score of efficiency and specificity
+    module_scores = []
+    for module in server_modules:
+        total_points = module.ai_capacity + module.ao_capacity + module.di_capacity + module.do_capacity + module.ui_capacity + module.uio_capacity
+        if total_points > 0:
+            # Prioritize modules that are more specific first
+            specificity = (module.ai_capacity + module.ao_capacity + module.di_capacity + module.do_capacity) / total_points
+            efficiency = total_points / module.cost
+            score = 0.7 * specificity + 0.3 * efficiency
+            module_scores.append((module, score))
+
+    module_scores.sort(key=lambda x: x[1], reverse=True)
+    sorted_modules = [m for m, s in module_scores]
+
+    # Greedily select modules to meet requirements
+    for module in sorted_modules:
+        while True:
+            # Check if this module helps with any remaining requirement
+            helps = False
+            if (remaining_requirements['AI'] > 0 and (module.ai_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['AO'] > 0 and (module.ao_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['DI'] > 0 and (module.di_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['DO'] > 0 and (module.do_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['UI'] > 0 and (module.ui_capacity > 0 or module.uio_capacity > 0)):
+                helps = True
+
+            if not helps:
+                break
+
+            # Add module
+            required_modules.append({
+                'id': module.id,
+                'name': module.name,
+                'part_number': module.part_number,
+                'quantity': 1,
+                'cost': module.cost
+            })
+
+            # Update costs
+            total_cost += module.cost
+            module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+            for accessory in module_accessories:
+                total_cost += accessory.cost
+
+            # Update remaining requirements
+            # Prioritize specific inputs first
+            rem_ai = max(0, remaining_requirements['AI'] - module.ai_capacity)
+            rem_ao = max(0, remaining_requirements['AO'] - module.ao_capacity)
+            rem_di = max(0, remaining_requirements['DI'] - module.di_capacity)
+            rem_do = max(0, remaining_requirements['DO'] - module.do_capacity)
+            rem_ui = max(0, remaining_requirements['UI'] - module.ui_capacity)
+
+            # Use flexible UI points
+            ui_flex = module.ui_capacity
+            if rem_ai > 0:
+                take = min(rem_ai, ui_flex)
+                rem_ai -= take
+                ui_flex -= take
+            if rem_ao > 0:
+                take = min(rem_ao, ui_flex)
+                rem_ao -= take
+                ui_flex -= take
+            if rem_di > 0:
+                take = min(rem_di, ui_flex)
+                rem_di -= take
+                ui_flex -= take
+            if rem_do > 0:
+                take = min(rem_do, ui_flex)
+                rem_do -= take
+                ui_flex -= take
+            
+            # Use flexible UIO points
+            uio_flex = module.uio_capacity
+            if rem_ai > 0:
+                take = min(rem_ai, uio_flex)
+                rem_ai -= take
+                uio_flex -= take
+            if rem_ao > 0:
+                take = min(rem_ao, uio_flex)
+                rem_ao -= take
+                uio_flex -= take
+            if rem_di > 0:
+                take = min(rem_di, uio_flex)
+                rem_di -= take
+                uio_flex -= take
+            if rem_do > 0:
+                take = min(rem_do, uio_flex)
+                rem_do -= take
+                uio_flex -= take
+            if rem_ui > 0:
+                take = min(rem_ui, uio_flex)
+                rem_ui -= take
+                uio_flex -= take
+
+            # Check if adding the module made any change
+            if remaining_requirements['AI'] == rem_ai and \
+               remaining_requirements['AO'] == rem_ao and \
+               remaining_requirements['DI'] == rem_di and \
+               remaining_requirements['DO'] == rem_do and \
+               remaining_requirements['UI'] == rem_ui:
+                # This module doesn't help, remove it and break
+                required_modules.pop()
+                total_cost -= module.cost
+                for accessory in module_accessories:
+                    total_cost -= accessory.cost
+                break
+
+            remaining_requirements['AI'] = rem_ai
+            remaining_requirements['AO'] = rem_ao
+            remaining_requirements['DI'] = rem_di
+            remaining_requirements['DO'] = rem_do
+            remaining_requirements['UI'] = rem_ui
+
+            # Check if all requirements are met
+            if sum(remaining_requirements.values()) == 0:
+                break
+        
+        if sum(remaining_requirements.values()) == 0:
+            break
+
+
+    # Check if solution is feasible
+    if sum(remaining_requirements.values()) > 0:
+        return None  # Cannot meet requirements
+
+    # Consolidate modules
+    consolidated_modules = {}
+    for module in required_modules:
+        if module['part_number'] not in consolidated_modules:
+            consolidated_modules[module['part_number']] = module.copy()
+        else:
+            consolidated_modules[module['part_number']]['quantity'] += 1
+    
+    final_modules = list(consolidated_modules.values())
+
+    return {
+        'type': 'AS-P',
+        'server_id': asp_server.id,
+        'server_name': asp_server.name,
+        'server_part_number': asp_server.part_number,
+        'modules': final_modules,
+        'total_cost': total_cost,
+        'description': f"AS-P Server with {len(final_modules)} module types"
+    }
+
+
+def generate_asb_solution(asb_server, requirements):
+    """Generate AS-B solution if it can meet requirements."""
+    if not asb_server:
+        return None
+    
+    # Check if AS-B server can handle requirements
+    can_handle = True
+    total_capacity = {
+        'AI': asb_server.ai_capacity,
+        'AO': asb_server.ao_capacity,
+        'DI': asb_server.di_capacity,
+        'DO': asb_server.do_capacity,
+        'UI': asb_server.ui_capacity,
+        'UIO': asb_server.uio_capacity
+    }
+    
+    # Check direct capacity matches
+    remaining = requirements.copy()
+    for point_type in ['AI', 'AO', 'DI', 'DO', 'UI']:
+        if remaining[point_type] > total_capacity[point_type]:
+            # Check if UIO can cover the difference
+            deficit = remaining[point_type] - total_capacity[point_type]
+            if deficit > total_capacity['UIO']:
+                can_handle = False
+                break
+            else:
+                total_capacity['UIO'] -= deficit
+                remaining[point_type] = 0
+        else:
+            remaining[point_type] = 0
+    
+    if not can_handle:
+        return None
+    
+    # Calculate total cost with accessories
+    total_cost = asb_server.cost
+    accessories = Accessory.query.filter_by(parent_part_number=asb_server.part_number).all()
+    for accessory in accessories:
+        total_cost += accessory.cost
+    
+    return {
+        'type': 'AS-B',
+        'server_id': asb_server.id,
+        'server_name': asb_server.name,
+        'server_part_number': asb_server.part_number,
+        'modules': [],  # AS-B doesn't use modules
+        'total_cost': total_cost,
+        'description': f"AS-B {asb_server.name} (fixed capacity)"
+    }
+
+def run_controller_optimization(project_id, panels):
+    """
+    Optimize controller selection for given panels.
+    This is a simplified optimization algorithm that selects the most cost-effective
+    controllers based on point requirements.
+    """
+    optimization_result = {}
+    
+    # Get all non-server controller types, sorted by cost efficiency
+    controller_types = ControllerType.query.filter_by(is_server=False).all()
+    
+    for panel in panels:
+        # Get panel point requirements
+        panel_points = get_panel_point_requirements(project_id, panel.id)
+
+        # Skip panels with no points
+        if sum(panel_points.values()) == 0:
+            continue
+        
+        # Find best controller for this panel
+        best_controller = find_optimal_controller(panel_points, controller_types)
+        
+        if best_controller:
+            optimization_result[panel.id] = {
+                'controller_type_id': best_controller['controller_id'],
+                'quantity': best_controller['quantity']
+            }
+    
+    return optimization_result
+
+def get_panel_point_requirements(project_id, panel_id):
+    """Get point requirements for a specific panel."""
+    requirements = {
+        'AI': 0, 'AO': 0, 'DI': 0, 'DO': 0, 'UI': 0
+    }
+    
+    equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel_id).all()
+    
+    for equip in equipments:
+        equip_qty = equip.quantity or 1
+        template = equip.equipment_template
+        
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+
+        for pt in selected_points:
+            etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
+
+            sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
+            for sp in sub_points:
+                point_type = sp.point_type.upper()
+                if point_type in requirements:
+                    requirements[point_type] += point_repeat
+    
+    return requirements
+
+def find_optimal_controller(point_requirements, controller_types):
+    """Find the most cost-effective controller (possibly multiple units) for given point requirements.
+
+    This enhanced version computes the minimum quantity of a controller type needed to cover
+    the panel I/O when a single controller isn't sufficient. It accounts for flexible UI/UO/UIO.
+    """
+    import math
+
+    def can_cover_with_n(controller, reqs, n):
+        # Make mutable copies
+        rem_reqs = {
+            'AI': reqs.get('AI', 0), 'AO': reqs.get('AO', 0), 'DI': reqs.get('DI', 0),
+            'DO': reqs.get('DO', 0), 'UI': reqs.get('UI', 0)
+        }
+        rem_cap = {
+            'AI': controller.ai_capacity * n,
+            'AO': controller.ao_capacity * n,
+            'DI': controller.di_capacity * n,
+            'DO': controller.do_capacity * n,
+            'UI': controller.ui_capacity * n,
+            'UO': controller.uo_capacity * n,
+            'UIO': controller.uio_capacity * n,
+        }
+
+        # 1) Use dedicated capacities first
+        for pt in ['AI', 'AO', 'DI', 'DO', 'UI']:
+            take = min(rem_reqs[pt], rem_cap.get(pt, 0))
+            rem_reqs[pt] -= take
+            rem_cap[pt] -= take
+
+        # 2) Use UI for remaining INPUTS (AI, DI)
+        for pt in ['AI', 'DI']:
+            take = min(rem_reqs[pt], rem_cap['UI'])
+            rem_reqs[pt] -= take
+            rem_cap['UI'] -= take
+
+        # 3) Use UO for remaining OUTPUTS (AO, DO)
+        for pt in ['AO', 'DO']:
+            take = min(rem_reqs[pt], rem_cap['UO'])
+            rem_reqs[pt] -= take
+            rem_cap['UO'] -= take
+
+        # 4) Use UIO for anything left
+        for pt in ['AI', 'AO', 'DI', 'DO', 'UI']:
+            take = min(rem_reqs[pt], rem_cap['UIO'])
+            rem_reqs[pt] -= take
+            rem_cap['UIO'] -= take
+
+        return all(v <= 0 for v in rem_reqs.values())
+
+    def lower_bound_n(controller, reqs):
+        # Quick lower bound based on effective per-unit capacities (optimistic)
+        eff = {
+            'AI': controller.ai_capacity + controller.ui_capacity + controller.uio_capacity,
+            'AO': controller.ao_capacity + controller.uo_capacity + controller.uio_capacity,
+            'DI': controller.di_capacity + controller.ui_capacity + controller.uio_capacity,
+            'DO': controller.do_capacity + controller.uo_capacity + controller.uio_capacity,
+            'UI': controller.ui_capacity + controller.uio_capacity,
+        }
+        n_lb = 1
+        for pt, need in reqs.items():
+            cap = eff.get(pt, 0)
+            if need > 0:
+                if cap == 0:
+                    return math.inf
+                n_lb = max(n_lb, math.ceil(need / cap))
+        return n_lb
+
+    best_option = None
+    best_cost = float('inf')
+
+    for controller in controller_types:
+        n_start = lower_bound_n(controller, point_requirements)
+        if n_start == math.inf:
+            continue
+
+        # Try from lower bound up to a reasonable cap
+        for n in range(int(n_start), int(n_start) + 20):
+            if can_cover_with_n(controller, point_requirements, n):
+                total_cost = calculate_controller_cost_with_accessories(controller.id) * n
+                if total_cost < best_cost:
+                    best_cost = total_cost
+                    best_option = {
+                        'controller_id': controller.id,
+                        'quantity': n,
+                        'cost': total_cost
+                    }
+                break  # No need to try larger n for this controller
+
+    return best_option
+
+@app.route('/api/projects/<int:project_id>/controller_selection/boq', methods=['GET'])
+@login_required
+def generate_controller_boq(project_id):
+    """Generate Bill of Quantities for controllers and field devices."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info("generate_controller_boq called")
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get controller selections
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    # Generate comprehensive BOQ with controllers, modules, and accessories
+    controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'is_server': controller.is_server,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
+                    
+                    # Add module accessories
+                    module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    for accessory in module_accessories:
+                        acc_part_num = accessory.part_number
+                        if acc_part_num not in accessory_boq:
+                            accessory_boq[acc_part_num] = {
+                                'name': accessory.name,
+                                'part_number': acc_part_num,
+                                'quantity': 0,
+                                'unit_cost': accessory.cost,
+                                'total_cost': 0,
+                                'category': 'Accessory'
+                            }
+                        
+                        accessory_boq[acc_part_num]['quantity'] += module_qty
+                        accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                        total_controller_cost += module_qty * accessory.cost
+
+    # Generate field devices BOQ (from scheduled equipment)
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                # Calculate quantity needed
+                etp = EquipmentTemplatePoint.query.filter_by(
+                    equipment_template_id=equip.equipment_template_id, 
+                    point_template_id=pt.id
+                ).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                total_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += total_qty
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += total_qty * (part.cost or 0)
+
+    # Combine all BOQ items
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
+
+    return jsonify({
+        'controller_boq': all_controller_items,
+        'field_devices_boq': list(field_devices_boq.values()),
+        'total_controller_cost': total_controller_cost,
+        'total_field_cost': total_field_cost,
+        'grand_total': total_controller_cost + total_field_cost
+    }), 200
+
+@app.route('/api/projects/<int:project_id>/controller_selection/point_list', methods=['GET'])
+@login_required
+def generate_point_list(project_id):
+    """Generate detailed point list showing equipment-point breakdown by panel."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get all scheduled equipment for the project
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    # Group by panel
+    panels_data = {}
+    
+    for equip in scheduled_equipments:
+        # Get panel information from relationship
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
+        floor = equip.panel.floor if equip.panel else "Unknown Floor"
+        
+        if panel_name not in panels_data:
+            panels_data[panel_name] = {
+                'panel_name': panel_name,
+                'floor': floor,
+                'equipment_points': [],
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+            }
+        
+        # Get selected points for this equipment
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            # Get quantity from equipment template point relationship
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=equip.equipment_template_id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+            
+            # Get individual point data from sub_points
+            for sub_point in pt.sub_points:
+                point_type = sub_point.point_type.upper()
+                
+                # Determine communication type - only show protocol if it's a software point
+                communication = ""
+                is_software_point = False
+                if hasattr(pt, 'part_number') and pt.part_number:
+                    # Check if it's a software/network point based on part number patterns
+                    part_num = pt.part_number.upper()
+                    if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        is_software_point = True
+                        if point_type in ['AI', 'AO']:
+                            communication = "BACnet"
+                        else:
+                            communication = "Modbus"
+                
+                # Create individual point entry
+                point_counts = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+                if point_type == 'DI':
+                    point_counts['di'] = point_qty
+                elif point_type == 'DO':
+                    point_counts['do'] = point_qty
+                elif point_type == 'AI':
+                    point_counts['ai'] = point_qty
+                elif point_type == 'AO':
+                    point_counts['ao'] = point_qty
+                
+                panels_data[panel_name]['equipment_points'].append({
+                    'equipment_name': equip.instance_name,
+                    'point_name': pt.name,
+                    'point_type': point_type,
+                    'part_number': getattr(pt, 'part_number', '') or '',
+                    'di': point_counts['di'],
+                    'do': point_counts['do'],
+                    'ai': point_counts['ai'],
+                    'ao': point_counts['ao'],
+                    'communication': communication
+                })
+                
+                # Add to panel totals
+                panels_data[panel_name]['panel_totals']['di'] += point_counts['di']
+                panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
+                panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
+                panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
+                if is_software_point:
+                    panels_data[panel_name]['panel_totals']['communication'] += point_qty
+    
+    # Convert to list and sort by panel name
+    panels_list = list(panels_data.values())
+    panels_list.sort(key=lambda x: x['panel_name'])
+    
+    # Calculate grand totals
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+    total_equipment_points = 0
+    
+    for panel_data in panels_list:
+        panel_totals = panel_data['panel_totals']
+        grand_totals['di'] += panel_totals['di']
+        grand_totals['do'] += panel_totals['do']
+        grand_totals['ai'] += panel_totals['ai']
+        grand_totals['ao'] += panel_totals['ao']
+        grand_totals['communication'] += panel_totals.get('communication', 0)
+        total_equipment_points += len(panel_data['equipment_points'])
+    
+    return jsonify({
+        'panels': panels_list,
+        'total_equipment_points': total_equipment_points,
+        'grand_totals': grand_totals
+    }), 200
+
 # --- SOCKET.IO ---
 
 # Store active users per project
@@ -936,6 +1946,9 @@ def setup_database(app):
             db.session.commit()
             print("Created default admin user: admin/admin123")
         
+        # Load controller types from CSV files
+        load_csv_data()
+        
         # Deduplicate global parts on first run after migration (keep lowest id)
         from sqlalchemy import func
         dups = (db.session.query(Part.part_number, func.count(Part.id))
@@ -964,6 +1977,95 @@ def setup_database(app):
             # Log and continue; non-fatal if cleanup fails
             print(f"Warning: failed to deduplicate selected_points table: {e}")
 
+def load_csv_data():
+    """Load controller data from CSV files."""
+    import csv
+    import os
+    
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    
+    # Load servers (automation servers)
+    servers_file = os.path.join(basedir, 'servers.csv')
+    if os.path.exists(servers_file) and ControllerType.query.filter_by(is_server=True).count() == 0:
+        with open(servers_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                server = ControllerType(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost']),
+                    is_server=True
+                )
+                db.session.add(server)
+        print("Loaded automation servers from CSV")
+    
+    # Load controllers
+    controllers_file = os.path.join(basedir, 'controllers.csv')
+    if os.path.exists(controllers_file) and ControllerType.query.filter_by(is_server=False).count() == 0:
+        with open(controllers_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                controller = ControllerType(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost']),
+                    is_server=False
+                )
+                db.session.add(controller)
+        print("Loaded controllers from CSV")
+    
+    # Load server modules
+    modules_file = os.path.join(basedir, 'server_modules.csv')
+    if os.path.exists(modules_file) and ServerModule.query.count() == 0:
+        with open(modules_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                module = ServerModule(
+                    name=row['Name'],
+                    part_number=row['PartNumber'],
+                    di_capacity=int(row.get('DI', 0)),
+                    do_capacity=int(row.get('DO', 0)),
+                    ai_capacity=int(row.get('AI', 0)),
+                    ao_capacity=int(row.get('AO', 0)),
+                    ui_capacity=int(row.get('UI', 0)),
+                    uo_capacity=int(row.get('UO', 0)),
+                    uio_capacity=int(row.get('UIO', 0)),
+                    cost=float(row['Cost'])
+                )
+                db.session.add(module)
+        print("Loaded server modules from CSV")
+    
+    # Load accessories
+    accessories_file = os.path.join(basedir, 'accessories.csv')
+    if os.path.exists(accessories_file) and Accessory.query.count() == 0:
+        with open(accessories_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                accessory = Accessory(
+                    parent_part_number=row['ParentPartNumber'],
+                    name=row['AccessoryName'],
+                    part_number=row['AccessoryPartNumber'],
+                    cost=float(row['AccessoryCost'])
+                )
+                db.session.add(accessory)
+        print("Loaded accessories from CSV")
+    
+    db.session.commit()
+
 if __name__ == '__main__':
     setup_database(app)
-    socketio.run(app, debug=True, port=5001)
+    socketio.run(app, debug=True, port=5001, allow_unsafe_werkzeug=True)
