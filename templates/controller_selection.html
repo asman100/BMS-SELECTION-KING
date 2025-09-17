@@ -797,7 +797,7 @@
                     throw new Error(data.error || 'Failed to optimize controllers');
                 }
 
-                optimizationResults = data.existing_selections;
+                optimizationResults = data; // The 'data' object itself is what we need
                 displayOptimizationResults();
 
                 showNotification('Controller selection optimized successfully!', 'success');
@@ -811,43 +811,49 @@
             const container = document.getElementById('results-container');
             container.innerHTML = '';
 
-            if (!optimizationResults || optimizationResults.length === 0) {
+            // The backend now returns a full data object, not just the selections array
+            const selections = optimizationResults.existing_selections || [];
+
+            if (!selections || selections.length === 0) {
                 container.innerHTML = '<div class="empty-state"><p>No optimization results available.</p></div>';
                 return;
             }
 
             let totalCost = 0;
 
-            optimizationResults.forEach(result => {
+            selections.forEach(result => {
                 const resultDiv = document.createElement('div');
                 resultDiv.className = `result-item ${result.is_server_selection ? 'server' : 'optimized'}`;
 
                 const cost = result.total_cost || 0;
                 totalCost += cost;
 
-                let detailsHtml = '';
+                let detailsHtml = 'No controller required (0 points).';
+                let controllerName = 'No Controller Selected';
+                let serverName = '';
+
                 if (result.controller_type) {
+                    controllerName = result.controller_type.name;
+                    serverName = result.controller_type.name; // For server solutions
                     const capacityInfo = [
                         `AI: ${result.controller_type.ai_capacity}`,
                         `AO: ${result.controller_type.ao_capacity}`,
                         `DI: ${result.controller_type.di_capacity}`,
                         `DO: ${result.controller_type.do_capacity}`,
-                        `UIO: ${result.controller_type.uio_capacity}`
+                        `UI: ${result.controller_type.ui_capacity}`,
+                        `UIO: ${result.controller_type.uio_capacity}`,
                     ].join(', ');
 
                     detailsHtml = `${result.controller_type.part_number} | ${capacityInfo} | Qty: ${result.quantity}`;
-                    
-                    if (result.server_modules && result.server_modules.length > 0) {
-                        detailsHtml += ` | Modules: ${result.server_modules.map(m => `${m.quantity}x Module`).join(', ')}`;
-                    }
-                } else {
-                    detailsHtml = 'Server solution configured';
+                } else if (result.is_server_selection) {
+                    controllerName = 'Server Solution'; // This is a generic title
+                    detailsHtml = `Selected Server: ${serverName || 'N/A'}`;
                 }
 
                 resultDiv.innerHTML = `
                     <div class="controller-info">
                         <div class="controller-name">
-                            ${result.panel_name} - ${result.controller_type ? result.controller_type.name : 'Server Solution'}
+                            ${result.panel_name} - ${controllerName}
                             ${result.is_server_selection ? ' (Server)' : ' (Auto-optimized)'}
                         </div>
                         <div class="controller-details">
@@ -1241,6 +1247,22 @@
             }, 5000);
         }
 
+        // Store the original displayBOQ function
+        const originalDisplayBOQ = displayBOQ;
+
+        // Enhanced BOQ display function to ensure point list button is always visible
+        function displayBOQEnhanced() {
+            originalDisplayBOQ(); // Call the original function
+            // Ensure Generate Point List button is visible
+            setTimeout(() => {
+                ensurePointListButtonVisible();
+            }, 100);
+        }
+
+        // Override the original displayBOQ to use the enhanced version
+        // This must be done after both functions are defined.
+        displayBOQ = displayBOQEnhanced;
+
         // Real-time update handlers for immediate point data refresh
         if (typeof io !== 'undefined') {
             const socket = io();
@@ -1269,24 +1291,6 @@
                 }
             });
         }
-
-        // Enhanced BOQ display function to ensure point list button is always visible
-        function displayBOQEnhanced() {
-            displayBOQ();
-            // Ensure Generate Point List button is visible
-            setTimeout(() => {
-                const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
-                if (pointListButton) {
-                    pointListButton.style.display = 'inline-block';
-                    pointListButton.style.visibility = 'visible';
-                    pointListButton.style.opacity = '1';
-                }
-            }, 100);
-        }
-
-        // Override the original displayBOQ to use enhanced version
-        const originalDisplayBOQ = displayBOQ;
-        displayBOQ = displayBOQEnhanced;
 
         // Load data when page loads
         document.addEventListener('DOMContentLoaded', loadControllerSelectionData);

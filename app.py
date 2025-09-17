@@ -1094,6 +1094,9 @@ def optimize_controller_selection(project_id):
 
 def calculate_server_solution_cost(server_type_id, selected_modules):
     """Calculate total cost for a server solution including modules and accessories."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"calculate_server_solution_cost called with server_type_id: {server_type_id}")
     import json
     
     total_cost = 0
@@ -1124,6 +1127,9 @@ def calculate_server_solution_cost(server_type_id, selected_modules):
 
 def calculate_controller_cost_with_accessories(controller_type_id):
     """Calculate total cost for a controller including accessories."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"calculate_controller_cost_with_accessories called with controller_type_id: {controller_type_id}")
     total_cost = 0
     
     controller = ControllerType.query.get(controller_type_id)
@@ -1157,9 +1163,14 @@ def generate_optimal_server_solutions(panel_points):
     # Generate AS-P solutions (scalable with modules)
     asp_server = next((s for s in servers if 'AS-P' in s.name), None)
     if asp_server:
-        asp_solution = generate_asp_solution(asp_server, requirements, server_modules)
-        if asp_solution:
-            solutions.append(asp_solution)
+        try:
+            asp_solution = generate_asp_solution(asp_server, requirements, server_modules)
+            if asp_solution:
+                solutions.append(asp_solution)
+        except Exception as e:
+            import logging
+            logging.basicConfig(level=logging.ERROR)
+            logging.error(f"Error generating AS-P solution: {e}")
     
     # Generate AS-B solutions (fixed capacity)
     asb_servers = [s for s in servers if 'AS-B' in s.name]
@@ -1175,60 +1186,52 @@ def generate_optimal_server_solutions(panel_points):
 
 def generate_asp_solution(asp_server, requirements, server_modules):
     """Generate AS-P solution with optimal module configuration."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"generate_asp_solution called with requirements: {requirements}")
+    logging.info(f"server_modules: {[m.to_dict() for m in server_modules]}")
     if not asp_server:
         return None
-    
+
     # Start with base server cost and accessories
     total_cost = asp_server.cost
     accessories = Accessory.query.filter_by(parent_part_number=asp_server.part_number).all()
     for accessory in accessories:
         total_cost += accessory.cost
-    
+
     # Find optimal module combination
     required_modules = []
     remaining_requirements = requirements.copy()
-    
-    # Sort modules by efficiency (points per cost)
-    module_efficiency = []
+
+    # Sort modules by a composite score of efficiency and specificity
+    module_scores = []
     for module in server_modules:
         total_points = module.ai_capacity + module.ao_capacity + module.di_capacity + module.do_capacity + module.ui_capacity + module.uio_capacity
         if total_points > 0:
+            # Prioritize modules that are more specific first
+            specificity = (module.ai_capacity + module.ao_capacity + module.di_capacity + module.do_capacity) / total_points
             efficiency = total_points / module.cost
-            module_efficiency.append((module, efficiency))
-    
-    module_efficiency.sort(key=lambda x: x[1], reverse=True)
-    
+            score = 0.7 * specificity + 0.3 * efficiency
+            module_scores.append((module, score))
+
+    module_scores.sort(key=lambda x: x[1], reverse=True)
+    sorted_modules = [m for m, s in module_scores]
+
     # Greedily select modules to meet requirements
-    for module, _ in module_efficiency:
+    for module in sorted_modules:
         while True:
             # Check if this module helps with any remaining requirement
             helps = False
-            
-            # Direct capacity matches
-            if (remaining_requirements['AI'] > 0 and module.ai_capacity > 0) or \
-               (remaining_requirements['AO'] > 0 and module.ao_capacity > 0) or \
-               (remaining_requirements['DI'] > 0 and module.di_capacity > 0) or \
-               (remaining_requirements['DO'] > 0 and module.do_capacity > 0):
+            if (remaining_requirements['AI'] > 0 and (module.ai_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['AO'] > 0 and (module.ao_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['DI'] > 0 and (module.di_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['DO'] > 0 and (module.do_capacity > 0 or module.ui_capacity > 0 or module.uio_capacity > 0)) or \
+               (remaining_requirements['UI'] > 0 and (module.ui_capacity > 0 or module.uio_capacity > 0)):
                 helps = True
-            
-            # UI can be used for AI, AO, DI, DO requirements
-            if (remaining_requirements['AI'] > 0 and module.ui_capacity > 0) or \
-               (remaining_requirements['AO'] > 0 and module.ui_capacity > 0) or \
-               (remaining_requirements['DI'] > 0 and module.ui_capacity > 0) or \
-               (remaining_requirements['DO'] > 0 and module.ui_capacity > 0):
-                helps = True
-                
-            # Original UI requirement
-            if remaining_requirements['UI'] > 0 and module.ui_capacity > 0:
-                helps = True
-                
-            # UIO can be used for any remaining requirement
-            if sum(remaining_requirements.values()) > 0 and module.uio_capacity > 0:
-                helps = True
-            
+
             if not helps:
                 break
-            
+
             # Add module
             required_modules.append({
                 'id': module.id,
@@ -1237,57 +1240,114 @@ def generate_asp_solution(asp_server, requirements, server_modules):
                 'quantity': 1,
                 'cost': module.cost
             })
-            
+
             # Update costs
             total_cost += module.cost
             module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
             for accessory in module_accessories:
                 total_cost += accessory.cost
-            
+
             # Update remaining requirements
-            # Handle direct capacity matches first
-            remaining_requirements['AI'] = max(0, remaining_requirements['AI'] - module.ai_capacity)
-            remaining_requirements['AO'] = max(0, remaining_requirements['AO'] - module.ao_capacity)
-            remaining_requirements['DI'] = max(0, remaining_requirements['DI'] - module.di_capacity)
-            remaining_requirements['DO'] = max(0, remaining_requirements['DO'] - module.do_capacity)
-            remaining_requirements['UI'] = max(0, remaining_requirements['UI'] - module.ui_capacity)
+            # Prioritize specific inputs first
+            rem_ai = max(0, remaining_requirements['AI'] - module.ai_capacity)
+            rem_ao = max(0, remaining_requirements['AO'] - module.ao_capacity)
+            rem_di = max(0, remaining_requirements['DI'] - module.di_capacity)
+            rem_do = max(0, remaining_requirements['DO'] - module.do_capacity)
+            rem_ui = max(0, remaining_requirements['UI'] - module.ui_capacity)
+
+            # Use flexible UI points
+            ui_flex = module.ui_capacity
+            if rem_ai > 0:
+                take = min(rem_ai, ui_flex)
+                rem_ai -= take
+                ui_flex -= take
+            if rem_ao > 0:
+                take = min(rem_ao, ui_flex)
+                rem_ao -= take
+                ui_flex -= take
+            if rem_di > 0:
+                take = min(rem_di, ui_flex)
+                rem_di -= take
+                ui_flex -= take
+            if rem_do > 0:
+                take = min(rem_do, ui_flex)
+                rem_do -= take
+                ui_flex -= take
             
-            # Use UI capacity for remaining AI, AO, DI, DO requirements (UI is flexible)
-            remaining_ui = module.ui_capacity
-            for req_type in ['AI', 'AO', 'DI', 'DO']:
-                if remaining_requirements[req_type] > 0 and remaining_ui > 0:
-                    reduction = min(remaining_requirements[req_type], remaining_ui)
-                    remaining_requirements[req_type] -= reduction
-                    remaining_ui -= reduction
-            
-            # UIO can be used for any remaining requirement
-            total_remaining = sum(remaining_requirements.values())
-            if total_remaining > 0 and module.uio_capacity > 0:
-                reduction = min(total_remaining, module.uio_capacity)
-                # Proportionally reduce remaining requirements
-                for key in ['AI', 'AO', 'DI', 'DO', 'UI']:
-                    if remaining_requirements[key] > 0 and reduction > 0:
-                        reduction_for_type = min(remaining_requirements[key], reduction)
-                        remaining_requirements[key] -= reduction_for_type
-                        reduction -= reduction_for_type
-            
+            # Use flexible UIO points
+            uio_flex = module.uio_capacity
+            if rem_ai > 0:
+                take = min(rem_ai, uio_flex)
+                rem_ai -= take
+                uio_flex -= take
+            if rem_ao > 0:
+                take = min(rem_ao, uio_flex)
+                rem_ao -= take
+                uio_flex -= take
+            if rem_di > 0:
+                take = min(rem_di, uio_flex)
+                rem_di -= take
+                uio_flex -= take
+            if rem_do > 0:
+                take = min(rem_do, uio_flex)
+                rem_do -= take
+                uio_flex -= take
+            if rem_ui > 0:
+                take = min(rem_ui, uio_flex)
+                rem_ui -= take
+                uio_flex -= take
+
+            # Check if adding the module made any change
+            if remaining_requirements['AI'] == rem_ai and \
+               remaining_requirements['AO'] == rem_ao and \
+               remaining_requirements['DI'] == rem_di and \
+               remaining_requirements['DO'] == rem_do and \
+               remaining_requirements['UI'] == rem_ui:
+                # This module doesn't help, remove it and break
+                required_modules.pop()
+                total_cost -= module.cost
+                for accessory in module_accessories:
+                    total_cost -= accessory.cost
+                break
+
+            remaining_requirements['AI'] = rem_ai
+            remaining_requirements['AO'] = rem_ao
+            remaining_requirements['DI'] = rem_di
+            remaining_requirements['DO'] = rem_do
+            remaining_requirements['UI'] = rem_ui
+
             # Check if all requirements are met
             if sum(remaining_requirements.values()) == 0:
                 break
-    
+        
+        if sum(remaining_requirements.values()) == 0:
+            break
+
+
     # Check if solution is feasible
     if sum(remaining_requirements.values()) > 0:
         return None  # Cannot meet requirements
+
+    # Consolidate modules
+    consolidated_modules = {}
+    for module in required_modules:
+        if module['part_number'] not in consolidated_modules:
+            consolidated_modules[module['part_number']] = module.copy()
+        else:
+            consolidated_modules[module['part_number']]['quantity'] += 1
     
+    final_modules = list(consolidated_modules.values())
+
     return {
         'type': 'AS-P',
         'server_id': asp_server.id,
         'server_name': asp_server.name,
         'server_part_number': asp_server.part_number,
-        'modules': required_modules,
+        'modules': final_modules,
         'total_cost': total_cost,
-        'description': f"AS-P Server with {len(required_modules)} modules"
+        'description': f"AS-P Server with {len(final_modules)} module types"
     }
+
 
 def generate_asb_solution(asb_server, requirements):
     """Generate AS-B solution if it can meet requirements."""
@@ -1353,6 +1413,10 @@ def run_controller_optimization(project_id, panels):
     for panel in panels:
         # Get panel point requirements
         panel_points = get_panel_point_requirements(project_id, panel.id)
+
+        # Skip panels with no points
+        if sum(panel_points.values()) == 0:
+            continue
         
         # Find best controller for this panel
         best_controller = find_optimal_controller(panel_points, controller_types)
@@ -1393,40 +1457,103 @@ def get_panel_point_requirements(project_id, panel_id):
     return requirements
 
 def find_optimal_controller(point_requirements, controller_types):
-    """Find the most cost-effective controller for given point requirements."""
+    """Find the most cost-effective controller (possibly multiple units) for given point requirements.
+
+    This enhanced version computes the minimum quantity of a controller type needed to cover
+    the panel I/O when a single controller isn't sufficient. It accounts for flexible UI/UO/UIO.
+    """
+    import math
+
+    def can_cover_with_n(controller, reqs, n):
+        # Make mutable copies
+        rem_reqs = {
+            'AI': reqs.get('AI', 0), 'AO': reqs.get('AO', 0), 'DI': reqs.get('DI', 0),
+            'DO': reqs.get('DO', 0), 'UI': reqs.get('UI', 0)
+        }
+        rem_cap = {
+            'AI': controller.ai_capacity * n,
+            'AO': controller.ao_capacity * n,
+            'DI': controller.di_capacity * n,
+            'DO': controller.do_capacity * n,
+            'UI': controller.ui_capacity * n,
+            'UO': controller.uo_capacity * n,
+            'UIO': controller.uio_capacity * n,
+        }
+
+        # 1) Use dedicated capacities first
+        for pt in ['AI', 'AO', 'DI', 'DO', 'UI']:
+            take = min(rem_reqs[pt], rem_cap.get(pt, 0))
+            rem_reqs[pt] -= take
+            rem_cap[pt] -= take
+
+        # 2) Use UI for remaining INPUTS (AI, DI)
+        for pt in ['AI', 'DI']:
+            take = min(rem_reqs[pt], rem_cap['UI'])
+            rem_reqs[pt] -= take
+            rem_cap['UI'] -= take
+
+        # 3) Use UO for remaining OUTPUTS (AO, DO)
+        for pt in ['AO', 'DO']:
+            take = min(rem_reqs[pt], rem_cap['UO'])
+            rem_reqs[pt] -= take
+            rem_cap['UO'] -= take
+
+        # 4) Use UIO for anything left
+        for pt in ['AI', 'AO', 'DI', 'DO', 'UI']:
+            take = min(rem_reqs[pt], rem_cap['UIO'])
+            rem_reqs[pt] -= take
+            rem_cap['UIO'] -= take
+
+        return all(v <= 0 for v in rem_reqs.values())
+
+    def lower_bound_n(controller, reqs):
+        # Quick lower bound based on effective per-unit capacities (optimistic)
+        eff = {
+            'AI': controller.ai_capacity + controller.ui_capacity + controller.uio_capacity,
+            'AO': controller.ao_capacity + controller.uo_capacity + controller.uio_capacity,
+            'DI': controller.di_capacity + controller.ui_capacity + controller.uio_capacity,
+            'DO': controller.do_capacity + controller.uo_capacity + controller.uio_capacity,
+            'UI': controller.ui_capacity + controller.uio_capacity,
+        }
+        n_lb = 1
+        for pt, need in reqs.items():
+            cap = eff.get(pt, 0)
+            if need > 0:
+                if cap == 0:
+                    return math.inf
+                n_lb = max(n_lb, math.ceil(need / cap))
+        return n_lb
+
     best_option = None
     best_cost = float('inf')
-    
+
     for controller in controller_types:
-        # Check if controller can handle the requirements
-        # UIO points can be used for any purpose, so include them in capacity checks
-        can_handle = (
-            controller.ai_capacity + controller.uio_capacity >= point_requirements['AI'] and
-            controller.ao_capacity + controller.uio_capacity >= point_requirements['AO'] and
-            controller.di_capacity + controller.uio_capacity >= point_requirements['DI'] and
-            controller.do_capacity + controller.uio_capacity >= point_requirements['DO'] and
-            controller.ui_capacity + controller.uio_capacity >= point_requirements['UI']
-        )
-        
-        if can_handle:
-            # Calculate quantity needed (for now assume 1, could be enhanced for multiple controllers)
-            quantity = 1
-            total_cost = calculate_controller_cost_with_accessories(controller.id) * quantity
-            
-            if total_cost < best_cost:
-                best_cost = total_cost
-                best_option = {
-                    'controller_id': controller.id,
-                    'quantity': quantity,
-                    'cost': total_cost
-                }
-    
+        n_start = lower_bound_n(controller, point_requirements)
+        if n_start == math.inf:
+            continue
+
+        # Try from lower bound up to a reasonable cap
+        for n in range(int(n_start), int(n_start) + 20):
+            if can_cover_with_n(controller, point_requirements, n):
+                total_cost = calculate_controller_cost_with_accessories(controller.id) * n
+                if total_cost < best_cost:
+                    best_cost = total_cost
+                    best_option = {
+                        'controller_id': controller.id,
+                        'quantity': n,
+                        'cost': total_cost
+                    }
+                break  # No need to try larger n for this controller
+
     return best_option
 
 @app.route('/api/projects/<int:project_id>/controller_selection/boq', methods=['GET'])
 @login_required
 def generate_controller_boq(project_id):
     """Generate Bill of Quantities for controllers and field devices."""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info("generate_controller_boq called")
     project = Project.query.get_or_404(project_id)
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
@@ -1941,4 +2068,4 @@ def load_csv_data():
 
 if __name__ == '__main__':
     setup_database(app)
-    socketio.run(app, debug=True, port=5001)
+    socketio.run(app, debug=True, port=5001, allow_unsafe_werkzeug=True)

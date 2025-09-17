@@ -1,6 +1,9 @@
 <!-- Copied guidance style: concise, actionable rules for AI coding agents working on this repo -->
 # Copilot instructions for BMS-selection-
 
+Recent changes by Copilot (2025-09-17):
+- Enhanced non-server controller optimization in `app.py` (`find_optimal_controller`) to allow selecting multiple controllers per panel when one unit cannot cover I/O. This ensures non-server panels are fully represented in the Controller BOQ after running optimization.
+
 This repository is a small Flask single-file web app (backend + frontend) for managing Building Management System (BMS) equipment templates, point templates, panels and a scheduled equipment list.
 
 Key facts an agent must know (read these files first):
