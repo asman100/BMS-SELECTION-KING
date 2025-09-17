@@ -1844,12 +1844,18 @@ def generate_reports(project_id):
     if not selected_reports:
         return jsonify({"error": "No reports selected"}), 400
 
+    # Check if required data is available for selected reports
+    validation_errors = validate_report_prerequisites(project_id, selected_reports)
+    if validation_errors:
+        return jsonify({"error": "Missing required data", "details": validation_errors}), 400
+
     try:
         latex_content = generate_latex_content(project_id, selected_reports, header, footer, company_info)
         
-        # Try to generate PDF for preview
+        # Try to generate PDF for preview using reportlab as fallback
         pdf_preview_url = None
         try:
+            # First try pdflatex if available
             with tempfile.TemporaryDirectory() as temp_dir:
                 tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
                 pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
@@ -1874,9 +1880,13 @@ def generate_reports(project_id):
                             pdf_content = f.read()
                         pdf_preview_url = f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
                 except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                    # PDF generation failed, but we can still return LaTeX
-                    print(f"PDF generation failed: {e}")
-                    pass
+                    # pdflatex failed, try alternative PDF generation using reportlab
+                    try:
+                        pdf_preview_url = generate_pdf_with_reportlab(project_id, selected_reports, header, footer, company_info)
+                    except Exception as reportlab_error:
+                        # Both methods failed, will show LaTeX preview
+                        print(f"Both PDF generation methods failed: pdflatex: {e}, reportlab: {reportlab_error}")
+                        pass
         except Exception as e:
             print(f"Error in PDF preview generation: {e}")
             pass
@@ -1888,6 +1898,344 @@ def generate_reports(project_id):
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def validate_report_prerequisites(project_id, selected_reports):
+    """Validate that all required data is available for the selected reports."""
+    errors = []
+    
+    # Check if controller selection optimization has been completed
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    has_optimization = len(controller_selections) > 0
+    
+    # Check which reports require controller optimization
+    reports_requiring_optimization = ['field-devices-boq', 'controller-boq']
+    
+    for report_type in selected_reports:
+        if report_type in reports_requiring_optimization and not has_optimization:
+            errors.append(f"{report_type.replace('-', ' ').title()}: Requires controller selection optimization to be completed first")
+        
+        # Additional validations for specific reports
+        if report_type == 'equipment-list':
+            # Check if there are scheduled equipments
+            scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+            if not scheduled_equipments:
+                errors.append("Equipment List: No equipment scheduled in project")
+        
+        if report_type == 'point-list':
+            # Check if there are scheduled equipments with selected points
+            scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+            has_points = any(len(equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points) > 0 
+                           for equip in scheduled_equipments)
+            if not has_points:
+                errors.append("Point List: No I/O points selected for equipment")
+    
+    return errors
+
+def generate_pdf_with_reportlab(project_id, selected_reports, header, footer, company_info):
+    """Generate PDF using reportlab as fallback when LaTeX is not available."""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    import io
+    import base64
+    
+    # Create PDF in memory
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30,
+        alignment=1,  # Center alignment
+    )
+    story.append(Paragraph("BMS Project Reports", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Company info
+    if company_info:
+        story.append(Paragraph(company_info.replace('\n', '<br/>'), styles['Normal']))
+        story.append(Spacer(1, 20))
+    
+    # Generate each selected report
+    for report_type in selected_reports:
+        if report_type == 'equipment-list':
+            story.extend(generate_equipment_list_reportlab(project_id, styles))
+        elif report_type == 'point-list':
+            story.extend(generate_point_list_reportlab(project_id, styles))
+        elif report_type == 'field-devices-boq':
+            story.extend(generate_field_devices_boq_reportlab(project_id, styles))
+        elif report_type == 'controller-boq':
+            story.extend(generate_controller_boq_reportlab(project_id, styles))
+    
+    # Build PDF
+    doc.build(story)
+    
+    # Get PDF content and encode as base64
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    return f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+
+def generate_equipment_list_reportlab(project_id, styles):
+    """Generate equipment list content for reportlab PDF."""
+    story = []
+    story.append(Paragraph("Equipment List", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get equipment data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    if not scheduled_equipments:
+        story.append(Paragraph("No equipment scheduled in this project.", styles['Normal']))
+        return story
+    
+    # Create table data
+    data = [['Panel', 'Equipment Type', 'Instance Name', 'Quantity', 'Floor']]
+    
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        floor = equip.panel.floor if equip.panel else "Unknown"
+        equipment_type = equip.equipment_template.name if equip.equipment_template else "Unknown"
+        
+        data.append([panel_name, equipment_type, equip.instance_name, str(equip.quantity), floor])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_controller_boq_reportlab(project_id, styles):
+    """Generate controller BOQ content for reportlab PDF."""
+    story = []
+    story.append(Paragraph("Controller Bill of Quantities", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get controller selections and generate real BOQ data
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    if not controller_selections:
+        story.append(Paragraph("No controller optimization completed. Please run controller selection optimization first.", styles['Normal']))
+        return story
+    
+    controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+    
+    # Create table data
+    data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
+    
+    # Combine all controller items
+    all_controller_items = list(controller_boq.values())
+    
+    # Add real controller data
+    for item in all_controller_items:
+        data.append([
+            item['part_number'],
+            item['name'],
+            item['category'],
+            str(item['quantity']),
+            f"${item['unit_cost']:.2f}",
+            f"${item['total_cost']:.2f}"
+        ])
+    
+    # Add total row
+    data.append(['', '', '', '', 'TOTAL:', f"${total_controller_cost:.2f}"])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_field_devices_boq_reportlab(project_id, styles):
+    """Generate field devices BOQ content for reportlab PDF."""
+    story = []
+    story.append(Paragraph("Field Devices Bill of Quantities", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Generate field devices BOQ data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += 1
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += (part.cost or 0)
+    
+    if not field_devices_boq:
+        story.append(Paragraph("No field devices with parts found in this project.", styles['Normal']))
+        return story
+    
+    # Create table data
+    data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
+    
+    # Add field devices data
+    for item in field_devices_boq.values():
+        data.append([
+            item['part_number'],
+            item['name'],
+            item['category'],
+            str(item['quantity']),
+            f"${item['unit_cost']:.2f}",
+            f"${item['total_cost']:.2f}"
+        ])
+    
+    # Add total row
+    data.append(['', '', '', '', 'TOTAL:', f"${total_field_cost:.2f}"])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_point_list_reportlab(project_id, styles):
+    """Generate point list content for reportlab PDF."""
+    story = []
+    story.append(Paragraph("Point List", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get point list data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    if not scheduled_equipments:
+        story.append(Paragraph("No equipment scheduled in this project.", styles['Normal']))
+        return story
+    
+    # Create table data
+    data = [['Panel', 'Equipment', 'Point Name', 'Type', 'DI', 'DO', 'AI', 'AO']]
+    
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for point in selected_points:
+            point_type = getattr(point, 'point_type', 'Unknown')
+            
+            # Count points by type
+            di_count = 1 if point_type == 'DI' else 0
+            do_count = 1 if point_type == 'DO' else 0
+            ai_count = 1 if point_type == 'AI' else 0
+            ao_count = 1 if point_type == 'AO' else 0
+            
+            data.append([
+                panel_name,
+                equip.instance_name,
+                point.name,
+                point_type,
+                str(di_count),
+                str(do_count),
+                str(ai_count),
+                str(ao_count)
+            ])
+    
+    if len(data) == 1:  # Only header
+        story.append(Paragraph("No I/O points selected for equipment in this project.", styles['Normal']))
+        return story
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
 
 @app.route('/api/projects/<int:project_id>/reports/pdf', methods=['POST'])
 @login_required
