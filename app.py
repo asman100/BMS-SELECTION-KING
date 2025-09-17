@@ -1846,9 +1846,45 @@ def generate_reports(project_id):
 
     try:
         latex_content = generate_latex_content(project_id, selected_reports, header, footer, company_info)
+        
+        # Try to generate PDF for preview
+        pdf_preview_url = None
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
+                pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
+                
+                # Write LaTeX content to file
+                with open(tex_file, 'w', encoding='utf-8') as f:
+                    f.write(latex_content)
+                
+                # Try to compile with pdflatex
+                try:
+                    subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                                 check=True, capture_output=True, text=True)
+                    
+                    # Run again for references
+                    subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                                 check=True, capture_output=True, text=True)
+                    
+                    # Read PDF content and encode as base64 for preview
+                    if os.path.exists(pdf_file):
+                        import base64
+                        with open(pdf_file, 'rb') as f:
+                            pdf_content = f.read()
+                        pdf_preview_url = f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    # PDF generation failed, but we can still return LaTeX
+                    print(f"PDF generation failed: {e}")
+                    pass
+        except Exception as e:
+            print(f"Error in PDF preview generation: {e}")
+            pass
+        
         return jsonify({
             'latex_content': latex_content,
-            'reports': selected_reports
+            'reports': selected_reports,
+            'pdf_preview_url': pdf_preview_url
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1911,19 +1947,49 @@ def generate_latex_content(project_id, selected_reports, header, footer, company
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{ifthen}
 
 \geometry{margin=1in}
 \pagestyle{fancy}
 
-% Header and footer setup
-\fancyhead[L]{""" + header.replace('\n', r'\\') + r"""}
-\fancyhead[R]{\today}
-\fancyfoot[L]{""" + company_info.replace('\n', r'\\') + r"""}
-\fancyfoot[C]{""" + footer.replace('\n', r'\\') + r"""}
-\fancyfoot[R]{\thepage\ of \pageref{LastPage}}
+"""
 
+    # Enhanced header and footer setup with image support
+    header_content = header.replace('\n', r'\\')
+    footer_content = footer.replace('\n', r'\\')
+    company_content = company_info.replace('\n', r'\\')
+    
+    # Check if header/footer contain image paths (simple check for common image extensions)
+    header_has_image = any(ext in header.lower() for ext in ['.png', '.jpg', '.jpeg', '.pdf', '.eps'])
+    footer_has_image = any(ext in footer.lower() for ext in ['.png', '.jpg', '.jpeg', '.pdf', '.eps'])
+    
+    latex_content += r"""
+% Header and footer setup with image support
+"""
+    
+    if header_has_image:
+        # If header contains image path, treat it as an image
+        latex_content += f"\\fancyhead[L]{{\\includegraphics[height=1cm]{{{header_content}}}}}\n"
+    else:
+        # Regular text header
+        latex_content += f"\\fancyhead[L]{{{header_content}}}\n"
+    
+    latex_content += r"\fancyhead[R]{\today}" + "\n"
+    
+    if footer_has_image:
+        # If footer contains image path, treat it as an image
+        latex_content += f"\\fancyfoot[L]{{\\includegraphics[height=0.8cm]{{{company_content}}}}}\n"
+        latex_content += f"\\fancyfoot[C]{{{footer_content}}}\n"
+    else:
+        # Regular text footer
+        latex_content += f"\\fancyfoot[L]{{{company_content}}}\n"
+        latex_content += f"\\fancyfoot[C]{{{footer_content}}}\n"
+    
+    latex_content += r"\fancyfoot[R]{\thepage\ of \pageref{LastPage}}" + "\n"
+
+    latex_content += r"""
 \title{BMS Project Reports}
-\author{""" + company_info.split('\n')[0] if company_info else 'BMS Selection Tool' + r"""}
+\author{""" + (company_info.split('\n')[0] if company_info else 'BMS Selection Tool') + r"""}
 \date{\today}
 
 \begin{document}
@@ -2020,12 +2086,52 @@ This section provides a detailed breakdown of I/O points by equipment.
     return latex_content
 
 def generate_field_devices_boq_latex(project_id):
-    """Generate LaTeX content for field devices BOQ."""
+    """Generate LaTeX content for field devices BOQ using real data."""
+    
+    # Get real BOQ data from the existing API
+    from urllib.parse import urljoin
+    import requests
+    
+    # Instead of making HTTP request, directly call the BOQ generation logic
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                # Calculate quantity needed
+                etp = EquipmentTemplatePoint.query.filter_by(
+                    equipment_template_id=equip.equipment_template_id, 
+                    point_template_id=pt.id
+                ).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                total_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += total_qty
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += total_qty * (part.cost or 0)
     
     latex_content = r"""
 \section{Field Devices Bill of Quantities}
 
-This section provides a bill of quantities for all field devices.
+This section provides a bill of quantities for all field devices based on the scheduled equipment and selected I/O points.
 
 \begin{longtable}{|l|l|l|l|l|l|}
 \hline
@@ -2034,29 +2140,103 @@ This section provides a bill of quantities for all field devices.
 \endhead
 """
 
-    # Get BOQ data (this would need to be implemented to get actual BOQ data)
-    # For now, using placeholder
-    latex_content += r"""
-% Field devices BOQ data would be generated here from the optimization results
-TBD & Temperature Sensor & Sensor & 10 & \$50.00 & \$500.00 \\
-\hline
-TBD & Pressure Sensor & Sensor & 5 & \$75.00 & \$375.00 \\
-\hline
-"""
+    # Add real field devices data
+    for item in field_devices_boq.values():
+        part_num = item['part_number']
+        description = item['name']
+        category = item['category']
+        quantity = item['quantity']
+        unit_cost = item['unit_cost']
+        total_cost = item['total_cost']
+        
+        latex_content += f"{part_num} & {description} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
 
-    latex_content += r"""
-\end{longtable}
+    latex_content += f"""
+\\hline
+\\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_field_cost:.2f}}} \\\\
+\\hline
+\\end{{longtable}}
 
 """
     return latex_content
 
 def generate_controller_boq_latex(project_id):
-    """Generate LaTeX content for controller BOQ."""
+    """Generate LaTeX content for controller BOQ using real data."""
+    
+    # Get controller selections and generate real BOQ data
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'is_server': controller.is_server,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
     
     latex_content = r"""
 \section{Controller Bill of Quantities}
 
-This section provides a bill of quantities for controllers and related equipment.
+This section provides a bill of quantities for controllers, servers, modules, and accessories based on the optimization results.
 
 \begin{longtable}{|l|l|l|l|l|l|}
 \hline
@@ -2065,18 +2245,29 @@ This section provides a bill of quantities for controllers and related equipment
 \endhead
 """
 
-    # Get controller BOQ data (this would need to be implemented to get actual BOQ data)
-    # For now, using placeholder
-    latex_content += r"""
-% Controller BOQ data would be generated here from the optimization results
-TBD & BACnet Controller & Controller & 3 & \$1200.00 & \$3600.00 \\
-\hline
-TBD & I/O Module & Module & 8 & \$300.00 & \$2400.00 \\
-\hline
-"""
+    # Combine all controller items
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
+    
+    # Add real controller data
+    for item in all_controller_items:
+        part_num = item['part_number']
+        name = item['name']
+        category = item['category']
+        quantity = item['quantity']
+        unit_cost = item['unit_cost']
+        total_cost = item['total_cost']
+        
+        latex_content += f"{part_num} & {name} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
 
-    latex_content += r"""
-\end{longtable}
+    latex_content += f"""
+\\hline
+\\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_controller_cost:.2f}}} \\\\
+\\hline
+\\end{{longtable}}
 
 """
     return latex_content
