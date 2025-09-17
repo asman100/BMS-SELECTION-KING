@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
@@ -6,7 +6,13 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
 import json
+import tempfile
+import subprocess
 from datetime import datetime
+from pylatex import Document, Section, Subsection, Table, Tabular, Command
+from pylatex.utils import italic, bold, NoEscape
+from pylatex.base_classes import Environment
+from pylatex.package import Package
 
 # --- APP SETUP ---
 app = Flask(__name__)
@@ -600,6 +606,16 @@ def controller_selection_page(project_id):
         flash("You do not have permission to access this project.", "danger")
         return redirect(url_for('project_selection'))
     return render_template('controller_selection.html', project_id=project.id)
+
+@app.route('/reports_output/<int:project_id>')
+@login_required
+def reports_output_page(project_id):
+    """Render the reports output page for PDF generation."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('reports_output.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):
@@ -1807,6 +1823,263 @@ def generate_point_list(project_id):
         'total_equipment_points': total_equipment_points,
         'grand_totals': grand_totals
     }), 200
+
+@app.route('/api/projects/<int:project_id>/reports/generate', methods=['POST'])
+@login_required
+def generate_reports(project_id):
+    """Generate LaTeX content for selected reports."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    selected_reports = data.get('reports', [])
+    header = data.get('header', '')
+    footer = data.get('footer', '')
+    company_info = data.get('company_info', '')
+
+    if not selected_reports:
+        return jsonify({"error": "No reports selected"}), 400
+
+    try:
+        latex_content = generate_latex_content(project_id, selected_reports, header, footer, company_info)
+        return jsonify({
+            'latex_content': latex_content,
+            'reports': selected_reports
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/projects/<int:project_id>/reports/pdf', methods=['POST'])
+@login_required
+def generate_pdf(project_id):
+    """Generate PDF from LaTeX content."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data or 'latex_content' not in data:
+        return jsonify({"error": "No LaTeX content provided"}), 400
+
+    try:
+        # Create temporary files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
+            pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
+            
+            # Write LaTeX content to file
+            with open(tex_file, 'w', encoding='utf-8') as f:
+                f.write(data['latex_content'])
+            
+            # Try to compile with pdflatex (if available)
+            try:
+                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                             check=True, capture_output=True, text=True)
+                
+                # Run again for references
+                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                             check=True, capture_output=True, text=True)
+                
+                return send_file(pdf_file, as_attachment=True, 
+                               download_name=f"bms_reports_project_{project_id}.pdf")
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # If pdflatex is not available, return error with suggestion
+                return jsonify({
+                    "error": "PDF generation requires LaTeX installation. Please install TeX Live or MiKTeX and try again. You can download the LaTeX source instead."
+                }), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def generate_latex_content(project_id, selected_reports, header, footer, company_info):
+    """Generate LaTeX content for the selected reports."""
+    
+    # Start building LaTeX document
+    latex_content = r"""\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+\pagestyle{fancy}
+
+% Header and footer setup
+\fancyhead[L]{""" + header.replace('\n', r'\\') + r"""}
+\fancyhead[R]{\today}
+\fancyfoot[L]{""" + company_info.replace('\n', r'\\') + r"""}
+\fancyfoot[C]{""" + footer.replace('\n', r'\\') + r"""}
+\fancyfoot[R]{\thepage\ of \pageref{LastPage}}
+
+\title{BMS Project Reports}
+\author{""" + company_info.split('\n')[0] if company_info else 'BMS Selection Tool' + r"""}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+"""
+
+    # Generate content for each selected report
+    for report_type in selected_reports:
+        if report_type == 'equipment-list':
+            latex_content += generate_equipment_list_latex(project_id)
+        elif report_type == 'point-list':
+            latex_content += generate_point_list_latex(project_id)
+        elif report_type == 'field-devices-boq':
+            latex_content += generate_field_devices_boq_latex(project_id)
+        elif report_type == 'controller-boq':
+            latex_content += generate_controller_boq_latex(project_id)
+
+    latex_content += r"""
+\end{document}
+"""
+
+    return latex_content
+
+def generate_equipment_list_latex(project_id):
+    """Generate LaTeX content for equipment list."""
+    
+    # Get equipment data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    latex_content = r"""
+\section{Equipment List}
+
+This section provides a complete list of all scheduled equipment in the project.
+
+\begin{longtable}{|l|l|l|l|l|}
+\hline
+\textbf{Panel} & \textbf{Equipment Type} & \textbf{Instance Name} & \textbf{Quantity} & \textbf{Floor} \\
+\hline
+\endhead
+"""
+
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        floor = equip.panel.floor if equip.panel else "Unknown"
+        equipment_type = equip.equipment_template.name if equip.equipment_template else "Unknown"
+        
+        latex_content += f"{panel_name} & {equipment_type} & {equip.instance_name} & {equip.quantity} & {floor} \\\\\n\\hline\n"
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
+
+def generate_point_list_latex(project_id):
+    """Generate LaTeX content for point list."""
+    
+    # Get point list data (reuse existing logic)
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    latex_content = r"""
+\section{Point List}
+
+This section provides a detailed breakdown of I/O points by equipment.
+
+\begin{longtable}{|l|l|l|l|l|l|l|l|}
+\hline
+\textbf{Panel} & \textbf{Equipment} & \textbf{Point Name} & \textbf{Type} & \textbf{DI} & \textbf{DO} & \textbf{AI} & \textbf{AO} \\
+\hline
+\endhead
+"""
+
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        
+        for point in equip.selected_points:
+            point_type = getattr(point, 'point_type', 'Unknown')
+            
+            # Count points by type
+            di_count = 1 if point_type == 'DI' else 0
+            do_count = 1 if point_type == 'DO' else 0
+            ai_count = 1 if point_type == 'AI' else 0
+            ao_count = 1 if point_type == 'AO' else 0
+            
+            latex_content += f"{panel_name} & {equip.instance_name} & {point.name} & {point_type} & {di_count} & {do_count} & {ai_count} & {ao_count} \\\\\n\\hline\n"
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
+
+def generate_field_devices_boq_latex(project_id):
+    """Generate LaTeX content for field devices BOQ."""
+    
+    latex_content = r"""
+\section{Field Devices Bill of Quantities}
+
+This section provides a bill of quantities for all field devices.
+
+\begin{longtable}{|l|l|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+
+    # Get BOQ data (this would need to be implemented to get actual BOQ data)
+    # For now, using placeholder
+    latex_content += r"""
+% Field devices BOQ data would be generated here from the optimization results
+TBD & Temperature Sensor & Sensor & 10 & \$50.00 & \$500.00 \\
+\hline
+TBD & Pressure Sensor & Sensor & 5 & \$75.00 & \$375.00 \\
+\hline
+"""
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
+
+def generate_controller_boq_latex(project_id):
+    """Generate LaTeX content for controller BOQ."""
+    
+    latex_content = r"""
+\section{Controller Bill of Quantities}
+
+This section provides a bill of quantities for controllers and related equipment.
+
+\begin{longtable}{|l|l|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+
+    # Get controller BOQ data (this would need to be implemented to get actual BOQ data)
+    # For now, using placeholder
+    latex_content += r"""
+% Controller BOQ data would be generated here from the optimization results
+TBD & BACnet Controller & Controller & 3 & \$1200.00 & \$3600.00 \\
+\hline
+TBD & I/O Module & Module & 8 & \$300.00 & \$2400.00 \\
+\hline
+"""
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
 
 # --- SOCKET.IO ---
 
