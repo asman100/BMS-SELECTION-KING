@@ -484,7 +484,7 @@
 
                 <div style="margin-top: 1rem;">
                     <button onclick="exportBOQ()" class="btn btn-warning">Export BOQ</button>
-                    <button onclick="generatePointList()" class="btn btn-success" style="margin-left: 0.5rem; display: inline-block !important; visibility: visible !important;">Generate Point List</button>
+                    <button id="generate-point-list-btn" onclick="generatePointList()" class="btn btn-success generate-point-list-button" style="margin-left: 0.5rem; display: inline-block !important; visibility: visible !important; opacity: 1 !important;">Generate Point List</button>
                 </div>
             </div>
 
@@ -880,39 +880,23 @@
                 showNotification('Generating BOQ report...', 'success');
 
                 const response = await fetch(`/api/projects/${projectId}/controller_selection/boq`);
-                const data = await response.json();
-
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to generate BOQ');
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate BOQ');
                 }
 
+                const data = await response.json();
                 boqData = data;
                 displayBOQ();
                 
                 // Force show BOQ section and ensure Generate Point List button is visible
                 const boqSection = document.getElementById('boq-section');
-                boqSection.style.display = 'block';
+                if (boqSection) {
+                    boqSection.style.display = 'block';
+                }
                 
-                // Multiple attempts to ensure button visibility
-                setTimeout(() => {
-                    const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
-                    if (pointListButton) {
-                        pointListButton.style.display = 'inline-block';
-                        pointListButton.style.visibility = 'visible';
-                        pointListButton.style.opacity = '1';
-                        pointListButton.disabled = false;
-                    }
-                }, 100);
-                
-                setTimeout(() => {
-                    const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
-                    if (pointListButton) {
-                        pointListButton.style.display = 'inline-block';
-                        pointListButton.style.visibility = 'visible';
-                        pointListButton.style.opacity = '1';
-                        pointListButton.disabled = false;
-                    }
-                }, 500);
+                // Ensure Generate Point List button is visible with !important styling
+                ensurePointListButtonVisible();
 
                 showNotification('BOQ report generated successfully!', 'success');
             } catch (error) {
@@ -921,49 +905,111 @@
             }
         }
 
+        function ensurePointListButtonVisible() {
+            // Multiple attempts to ensure button visibility with different selectors
+            const buttonSelectors = [
+                'button[onclick="generatePointList()"]',
+                '#generate-point-list-btn',
+                '.generate-point-list-button'
+            ];
+            
+            buttonSelectors.forEach(selector => {
+                const button = document.querySelector(selector);
+                if (button) {
+                    button.style.setProperty('display', 'inline-block', 'important');
+                    button.style.setProperty('visibility', 'visible', 'important');
+                    button.style.setProperty('opacity', '1', 'important');
+                    button.disabled = false;
+                }
+            });
+            
+            // Additional delayed attempts
+            setTimeout(() => {
+                buttonSelectors.forEach(selector => {
+                    const button = document.querySelector(selector);
+                    if (button) {
+                        button.style.setProperty('display', 'inline-block', 'important');
+                        button.style.setProperty('visibility', 'visible', 'important');
+                        button.style.setProperty('opacity', '1', 'important');
+                        button.disabled = false;
+                    }
+                });
+            }, 100);
+        }
+
         function displayBOQ() {
-            if (!boqData) return;
+            if (!boqData) {
+                console.log('No BOQ data available');
+                return;
+            }
 
-            // Display controller BOQ (now includes servers, controllers, modules, and accessories)
-            const controllerBody = document.getElementById('controller-boq-body');
-            controllerBody.innerHTML = '';
+            try {
+                // Display controller BOQ (now includes servers, controllers, modules, and accessories)
+                const controllerBody = document.getElementById('controller-boq-body');
+                if (controllerBody) {
+                    controllerBody.innerHTML = '';
 
-            boqData.controller_boq.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${item.part_number}</td>
-                    <td>${item.name}</td>
-                    <td>${item.category || 'Controller'}</td>
-                    <td>${item.quantity}</td>
-                    <td>$${item.unit_cost.toFixed(2)}</td>
-                    <td>$${item.total_cost.toFixed(2)}</td>
-                `;
-                controllerBody.appendChild(row);
-            });
+                    if (boqData.controller_boq && Array.isArray(boqData.controller_boq)) {
+                        boqData.controller_boq.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.part_number || ''}</td>
+                                <td>${item.name || ''}</td>
+                                <td>${item.category || 'Controller'}</td>
+                                <td>${item.quantity || 0}</td>
+                                <td>$${(item.unit_cost || 0).toFixed(2)}</td>
+                                <td>$${(item.total_cost || 0).toFixed(2)}</td>
+                            `;
+                            controllerBody.appendChild(row);
+                        });
+                    }
+                }
 
-            // Display field devices BOQ
-            const fieldBody = document.getElementById('field-devices-boq-body');
-            fieldBody.innerHTML = '';
+                // Display field devices BOQ
+                const fieldBody = document.getElementById('field-devices-boq-body');
+                if (fieldBody) {
+                    fieldBody.innerHTML = '';
 
-            boqData.field_devices_boq.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${item.part_number}</td>
-                    <td>${item.name}</td>
-                    <td>${item.category}</td>
-                    <td>${item.quantity}</td>
-                    <td>$${item.unit_cost.toFixed(2)}</td>
-                    <td>$${item.total_cost.toFixed(2)}</td>
-                `;
-                fieldBody.appendChild(row);
-            });
+                    if (boqData.field_devices_boq && Array.isArray(boqData.field_devices_boq)) {
+                        boqData.field_devices_boq.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.part_number || ''}</td>
+                                <td>${item.name || ''}</td>
+                                <td>${item.category || ''}</td>
+                                <td>${item.quantity || 0}</td>
+                                <td>$${(item.unit_cost || 0).toFixed(2)}</td>
+                                <td>$${(item.total_cost || 0).toFixed(2)}</td>
+                            `;
+                            fieldBody.appendChild(row);
+                        });
+                    }
+                }
 
-            // Update totals
-            document.getElementById('total-controller-cost').textContent = boqData.total_controller_cost.toFixed(2);
-            document.getElementById('total-field-cost').textContent = boqData.total_field_cost.toFixed(2);
-            document.getElementById('grand-total-cost').textContent = boqData.grand_total.toFixed(2);
+                // Update totals safely
+                const totalControllerCost = document.getElementById('total-controller-cost');
+                const totalFieldCost = document.getElementById('total-field-cost');
+                const grandTotalCost = document.getElementById('grand-total-cost');
+                
+                if (totalControllerCost) {
+                    totalControllerCost.textContent = (boqData.total_controller_cost || 0).toFixed(2);
+                }
+                if (totalFieldCost) {
+                    totalFieldCost.textContent = (boqData.total_field_cost || 0).toFixed(2);
+                }
+                if (grandTotalCost) {
+                    grandTotalCost.textContent = (boqData.grand_total || 0).toFixed(2);
+                }
 
-            document.getElementById('boq-section').style.display = 'block';
+                const boqSection = document.getElementById('boq-section');
+                if (boqSection) {
+                    boqSection.style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('Error displaying BOQ:', error);
+                showNotification('Error displaying BOQ data', 'error');
+            }
         }
 
         function exportBOQ() {
