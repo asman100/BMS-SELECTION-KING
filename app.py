@@ -1595,7 +1595,7 @@ def generate_point_list(project_id):
                 'panel_name': panel_name,
                 'floor': floor,
                 'equipment_points': [],
-                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
             }
         
         # Get selected points for this equipment
@@ -1616,10 +1616,12 @@ def generate_point_list(project_id):
                 
                 # Determine communication type - only show protocol if it's a software point
                 communication = ""
+                is_software_point = False
                 if hasattr(pt, 'part_number') and pt.part_number:
                     # Check if it's a software/network point based on part number patterns
                     part_num = pt.part_number.upper()
                     if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        is_software_point = True
                         if point_type in ['AI', 'AO']:
                             communication = "BACnet"
                         else:
@@ -1653,13 +1655,15 @@ def generate_point_list(project_id):
                 panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
                 panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
                 panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
+                if is_software_point:
+                    panels_data[panel_name]['panel_totals']['communication'] += point_qty
     
     # Convert to list and sort by panel name
     panels_list = list(panels_data.values())
     panels_list.sort(key=lambda x: x['panel_name'])
     
     # Calculate grand totals
-    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
     total_equipment_points = 0
     
     for panel_data in panels_list:
@@ -1668,6 +1672,7 @@ def generate_point_list(project_id):
         grand_totals['do'] += panel_totals['do']
         grand_totals['ai'] += panel_totals['ai']
         grand_totals['ao'] += panel_totals['ao']
+        grand_totals['communication'] += panel_totals.get('communication', 0)
         total_equipment_points += len(panel_data['equipment_points'])
     
     return jsonify({

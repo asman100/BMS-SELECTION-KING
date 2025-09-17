@@ -484,7 +484,7 @@
 
                 <div style="margin-top: 1rem;">
                     <button onclick="exportBOQ()" class="btn btn-warning">Export BOQ</button>
-                    <button onclick="generatePointList()" class="btn btn-success" style="margin-left: 0.5rem;">Generate Point List</button>
+                    <button onclick="generatePointList()" class="btn btn-success" style="margin-left: 0.5rem; display: inline-block !important; visibility: visible !important;">Generate Point List</button>
                 </div>
             </div>
 
@@ -874,6 +874,7 @@
             document.getElementById('optimization-results').style.display = 'block';
         }
 
+        // Enhanced BOQ generation to ensure button visibility
         async function generateBOQ() {
             try {
                 showNotification('Generating BOQ report...', 'success');
@@ -888,19 +889,30 @@
                 boqData = data;
                 displayBOQ();
                 
-                // Ensure Generate Point List button is visible after BOQ generation
+                // Force show BOQ section and ensure Generate Point List button is visible
+                const boqSection = document.getElementById('boq-section');
+                boqSection.style.display = 'block';
+                
+                // Multiple attempts to ensure button visibility
                 setTimeout(() => {
-                    const boqSection = document.getElementById('boq-section');
                     const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
-                    
-                    if (boqSection && pointListButton) {
-                        boqSection.style.display = 'block';
+                    if (pointListButton) {
                         pointListButton.style.display = 'inline-block';
                         pointListButton.style.visibility = 'visible';
                         pointListButton.style.opacity = '1';
                         pointListButton.disabled = false;
                     }
-                }, 200);
+                }, 100);
+                
+                setTimeout(() => {
+                    const pointListButton = document.querySelector('button[onclick="generatePointList()"]');
+                    if (pointListButton) {
+                        pointListButton.style.display = 'inline-block';
+                        pointListButton.style.visibility = 'visible';
+                        pointListButton.style.opacity = '1';
+                        pointListButton.disabled = false;
+                    }
+                }, 500);
 
                 showNotification('BOQ report generated successfully!', 'success');
             } catch (error) {
@@ -1022,29 +1034,29 @@
                 return;
             }
 
-            // Create point list table with panel-grouped format
+            // Create point list table in the exact format shown in user's image
             let tableHtml = `
-                <table class="boq-table">
+                <table class="boq-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
-                        <tr>
-                            <th>Panel Name</th>
-                            <th>Equipment - Point Name</th>
-                            <th>Part Number</th>
-                            <th>DI</th>
-                            <th>DO</th>
-                            <th>AI</th>
-                            <th>AO</th>
-                            <th>Communication</th>
+                        <tr style="background-color: #4472c4; color: white;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">PANEL NAME</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">NAME</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">PART NUMBER</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of DI</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of DO</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of AI</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Sum of AO</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">SOFTWARE</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
             data.panels.forEach(panel => {
-                // Panel header row
+                // Panel header row (light blue background)
                 tableHtml += `
-                    <tr class="panel-header" style="background-color: #e3f2fd; font-weight: bold;">
-                        <td colspan="8"><strong>${panel.panel_name}</strong></td>
+                    <tr style="background-color: #d9e2f3; font-weight: bold;">
+                        <td colspan="8" style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${panel.panel_name}</td>
                     </tr>
                 `;
 
@@ -1052,47 +1064,47 @@
                 panel.equipment_points.forEach(point => {
                     const equipPointName = `${point.equipment_name} - ${point.point_name}`;
                     tableHtml += `
-                        <tr>
-                            <td></td>
-                            <td>${equipPointName}</td>
-                            <td>${point.part_number}</td>
-                            <td>${point.di}</td>
-                            <td>${point.do}</td>
-                            <td>${point.ai}</td>
-                            <td>${point.ao}</td>
-                            <td>${point.communication}</td>
+                        <tr style="background-color: white;">
+                            <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${equipPointName}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${point.part_number}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.di}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.do}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.ai}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.ao}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${point.communication}</td>
                         </tr>
                     `;
                 });
 
-                // Panel total row
+                // Panel total row (gray background)
                 const totals = panel.panel_totals;
                 tableHtml += `
-                    <tr class="panel-total" style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">
-                        <td><strong>${panel.panel_name} Total</strong></td>
-                        <td></td>
-                        <td></td>
-                        <td><strong>${totals.di}</strong></td>
-                        <td><strong>${totals.do}</strong></td>
-                        <td><strong>${totals.ai}</strong></td>
-                        <td><strong>${totals.ao}</strong></td>
-                        <td><strong>-</strong></td>
+                    <tr style="background-color: #f2f2f2; font-weight: bold;">
+                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${panel.panel_name} Total</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.di}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.do}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.ai}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.ao}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${totals.communication || 0}</td>
                     </tr>
                 `;
             });
 
-            // Grand total row
+            // Grand total row (green background)
             const grandTotals = data.grand_totals;
             tableHtml += `
-                    <tr class="boq-total" style="background-color: #e8f5e8; font-weight: bold; border-top: 3px solid #4caf50;">
-                        <td><strong>GRAND TOTALS</strong></td>
-                        <td></td>
-                        <td></td>
-                        <td><strong>${grandTotals.di}</strong></td>
-                        <td><strong>${grandTotals.do}</strong></td>
-                        <td><strong>${grandTotals.ai}</strong></td>
-                        <td><strong>${grandTotals.ao}</strong></td>
-                        <td><strong>-</strong></td>
+                    <tr style="background-color: #e2efda; font-weight: bold; border-top: 3px solid #70ad47;">
+                        <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">GRAND TOTALS</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px;"></td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.di}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.do}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.ai}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.ao}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${grandTotals.communication || 0}</td>
                     </tr>
                 </tbody>
             </table>
