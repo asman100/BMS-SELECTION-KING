@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports Output - BMS Tool</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #3b82f6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #06b6d4;
+            --dark-color: #1f2937;
+            --light-color: #f3f4f6;
+            --border-color: #d1d5db;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --white: #ffffff;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .report-selection {
+            background: var(--white);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-icon {
+            font-size: 1.5rem;
+            margin-right: 0.75rem;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .selection-content {
+            padding: 2rem;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .report-card {
+            background: #f8fafc;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .report-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .report-card.selected {
+            border-color: var(--primary-color);
+            background: #eff6ff;
+        }
+
+        .report-checkbox {
+            margin-bottom: 1rem;
+        }
+
+        .report-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 0.5rem;
+            accent-color: var(--primary-color);
+        }
+
+        .report-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .report-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .template-section {
+            background: var(--white);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .template-content {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: var(--white);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--text-secondary);
+            color: var(--white);
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: var(--white);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .preview-section {
+            background: var(--white);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .preview-content {
+            padding: 2rem;
+        }
+
+        .preview-iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .notification {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .notification.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .notification.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .notification.warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Reports Output</h1>
+            <p id="project-name">Generate LaTeX and PDF reports for your BMS project</p>
+        </div>
+
+        <div id="notifications"></div>
+
+        <div class="report-selection">
+            <div class="card-header">
+                <div class="card-icon">🎯</div>
+                <div class="card-title">Project Status</div>
+            </div>
+            <div class="selection-content">
+                <div id="project-status">
+                    <p style="color: #6b7280; margin-bottom: 1rem;">Checking project data availability...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-selection">
+            <div class="card-header">
+                <div class="card-icon">📋</div>
+                <div class="card-title">Select Reports to Generate</div>
+            </div>
+            <div class="selection-content">
+                <div class="report-grid">
+                    <div class="report-card" onclick="toggleReport('equipment-list')">
+                        <div class="report-checkbox">
+                            <input type="checkbox" id="equipment-list" name="reports" value="equipment-list">
+                            <label for="equipment-list" class="report-title">Equipment List</label>
+                        </div>
+                        <div class="report-description">
+                            Complete list of all scheduled equipment with their instances, quantities, and assigned panels.
+                        </div>
+                    </div>
+
+                    <div class="report-card" onclick="toggleReport('point-list')">
+                        <div class="report-checkbox">
+                            <input type="checkbox" id="point-list" name="reports" value="point-list">
+                            <label for="point-list" class="report-title">Point List</label>
+                        </div>
+                        <div class="report-description">
+                            Detailed breakdown of I/O points by equipment, showing signal types and part numbers.
+                        </div>
+                    </div>
+
+                    <div class="report-card" onclick="toggleReport('field-devices-boq')">
+                        <div class="report-checkbox">
+                            <input type="checkbox" id="field-devices-boq" name="reports" value="field-devices-boq">
+                            <label for="field-devices-boq" class="report-title">Field Devices BOQ</label>
+                        </div>
+                        <div class="report-description">
+                            Bill of quantities for field devices including sensors, actuators, and other components.
+                        </div>
+                    </div>
+
+                    <div class="report-card" onclick="toggleReport('controller-boq')">
+                        <div class="report-checkbox">
+                            <input type="checkbox" id="controller-boq" name="reports" value="controller-boq">
+                            <label for="controller-boq" class="report-title">Controller BOQ</label>
+                        </div>
+                        <div class="report-description">
+                            Bill of quantities for controllers, servers, modules, and accessories with pricing.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="template-section">
+            <div class="card-header">
+                <div class="card-icon">📝</div>
+                <div class="card-title">Document Template Settings</div>
+            </div>
+            <div class="template-content">
+                <div class="form-group">
+                    <label for="document-header">Document Header</label>
+                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
+                        Enter text or specify an image path (e.g., "/path/to/logo.png"). Supported formats: PNG, JPG, PDF, EPS
+                    </small>
+                    <textarea class="form-control" id="document-header" placeholder="Enter your document header (company name, project title, etc.) or image path">Building Management System
+Project Documentation
+Generated by BMS Selection Tool</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="document-footer">Document Footer</label>
+                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
+                        Enter text with LaTeX commands or specify an image path. Use \today for current date, \thepage for page numbers
+                    </small>
+                    <textarea class="form-control" id="document-footer" placeholder="Enter your document footer (company info, page numbers, etc.) or image path">Confidential - Property of [Company Name]
+Generated on: \today
+Page \thepage\ of \pageref{LastPage}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="company-info">Company Information</label>
+                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
+                        Enter company details or specify a logo image path for branding
+                    </small>
+                    <textarea class="form-control" id="company-info" placeholder="Enter company information or logo image path">[Company Name]
+[Address]
+[Phone] | [Email]
+[Website]</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="/controller_selection/{{ project_id }}" class="btn btn-secondary">Back to Controller Selection</a>
+            <button onclick="generatePreview()" class="btn btn-primary" id="preview-btn" disabled>Generate Preview</button>
+            <button onclick="downloadLatex()" class="btn btn-success" id="latex-btn" disabled>Download LaTeX</button>
+            <button onclick="downloadPDF()" class="btn btn-success" id="pdf-btn" disabled>Download PDF</button>
+        </div>
+
+        <div id="preview-section" class="preview-section">
+            <div class="card-header">
+                <div class="card-icon">👁️</div>
+                <div class="card-title">Document Preview</div>
+            </div>
+            <div class="preview-content">
+                <div id="loading-preview" class="loading" style="display: none;">
+                    <p>Generating preview...</p>
+                </div>
+                <iframe id="preview-iframe" class="preview-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project_id }};
+        let selectedReports = new Set();
+        let generatedContent = null;
+
+        function toggleReport(reportId) {
+            const checkbox = document.getElementById(reportId);
+            const card = checkbox.closest('.report-card');
+            
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                selectedReports.add(reportId);
+                card.classList.add('selected');
+            } else {
+                selectedReports.delete(reportId);
+                card.classList.remove('selected');
+            }
+            
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            const hasSelection = selectedReports.size > 0;
+            const previewBtn = document.getElementById('preview-btn');
+            const latexBtn = document.getElementById('latex-btn');
+            const pdfBtn = document.getElementById('pdf-btn');
+            
+            previewBtn.disabled = !hasSelection;
+            latexBtn.disabled = !generatedContent;
+            pdfBtn.disabled = !generatedContent;
+        }
+
+        async function generatePreview() {
+            if (selectedReports.size === 0) {
+                showNotification('Please select at least one report to generate.', 'warning');
+                return;
+            }
+
+            const previewSection = document.getElementById('preview-section');
+            const loadingPreview = document.getElementById('loading-preview');
+            const previewIframe = document.getElementById('preview-iframe');
+
+            previewSection.style.display = 'block';
+            loadingPreview.style.display = 'block';
+            previewIframe.style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/reports/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        reports: Array.from(selectedReports),
+                        header: document.getElementById('document-header').value,
+                        footer: document.getElementById('document-footer').value,
+                        company_info: document.getElementById('company-info').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data.details && Array.isArray(data.details)) {
+                        // Show validation errors with suggestions
+                        let errorMessage = data.error + ':\n\n';
+                        data.details.forEach(detail => {
+                            errorMessage += '• ' + detail + '\n';
+                        });
+                        errorMessage += '\nPlease complete the required steps in Controller Selection before generating these reports.';
+                        showNotification(errorMessage, 'error');
+                        
+                        // Hide preview section on validation error
+                        previewSection.style.display = 'none';
+                        return;
+                    } else {
+                        throw new Error(data.error || 'Failed to generate reports');
+                    }
+                }
+
+                generatedContent = data;
+                
+                // Show PDF preview if available, otherwise show LaTeX preview
+                if (data.pdf_preview_url) {
+                    previewIframe.src = data.pdf_preview_url;
+                    showNotification('PDF preview generated successfully!', 'success');
+                } else {
+                    // Fallback to LaTeX preview if PDF generation failed
+                    previewIframe.srcdoc = `
+                        <html>
+                            <head>
+                                <style>
+                                    body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
+                                    .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
+                                    .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
+                                    .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="note">
+                                    LaTeX source generated successfully. PDF preview requires LaTeX installation.
+                                    You can still download the LaTeX source and compile it locally.
+                                </div>
+                                <div class="section">
+                                    <div class="title">LaTeX Source Preview</div>
+                                    ${data.latex_content.substring(0, 3000)}...
+                                </div>
+                            </body>
+                        </html>
+                    `;
+                    showNotification('LaTeX source generated successfully', 'success');
+                }
+
+                loadingPreview.style.display = 'none';
+                previewIframe.style.display = 'block';
+                
+                updateButtonStates();
+
+            } catch (error) {
+                console.error('Error generating preview:', error);
+                showNotification('Error generating preview: ' + error.message, 'error');
+                loadingPreview.style.display = 'none';
+                previewSection.style.display = 'none';
+            }
+        }
+
+        async function downloadLatex() {
+            if (!generatedContent) {
+                showNotification('Please generate preview first.', 'warning');
+                return;
+            }
+
+            try {
+                const blob = new Blob([generatedContent.latex_content], { type: 'application/x-latex' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bms_reports_project_${projectId}.tex`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showNotification('LaTeX file downloaded successfully!', 'success');
+            } catch (error) {
+                console.error('Error downloading LaTeX:', error);
+                showNotification('Error downloading LaTeX file: ' + error.message, 'error');
+            }
+        }
+
+        async function downloadPDF() {
+            if (!generatedContent) {
+                showNotification('Please generate preview first.', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        latex_content: generatedContent.latex_content
+                    })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to generate PDF');
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bms_reports_project_${projectId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showNotification('PDF downloaded successfully!', 'success');
+            } catch (error) {
+                console.error('Error downloading PDF:', error);
+                showNotification('Error downloading PDF: ' + error.message, 'error');
+            }
+        }
+
+        function showNotification(message, type) {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            // Handle multi-line messages
+            if (message.includes('\n')) {
+                notification.innerHTML = message.replace(/\n/g, '<br>');
+            } else {
+                notification.textContent = message;
+            }
+            
+            notifications.appendChild(notification);
+            
+            // Auto-remove notification after longer time for error messages
+            const timeout = type === 'error' ? 10000 : 5000;
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, timeout);
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load project name and status
+            loadProjectStatus();
+            updateButtonStates();
+        });
+
+        async function loadProjectStatus() {
+            try {
+                // Check controller selection status
+                const controllerResponse = await fetch(`/api/projects/${projectId}/controller_selection`);
+                const controllerData = await controllerResponse.json();
+                
+                // Check for existing optimization
+                const boqResponse = await fetch(`/api/projects/${projectId}/controller_selection/boq`);
+                const hasOptimization = boqResponse.ok;
+                
+                // Check equipment data
+                const dataResponse = await fetch(`/api/data/${projectId}`);
+                const projectData = await dataResponse.json();
+                
+                displayProjectStatus(projectData, hasOptimization);
+                
+                // Update project name
+                document.getElementById('project-name').textContent = 
+                    `Generate LaTeX and PDF reports for Project ${projectId}`;
+                    
+            } catch (error) {
+                console.error('Error loading project status:', error);
+                document.getElementById('project-status').innerHTML = 
+                    '<p style="color: #ef4444;">Error loading project status</p>';
+            }
+        }
+
+        function displayProjectStatus(projectData, hasOptimization) {
+            const statusDiv = document.getElementById('project-status');
+            
+            let statusHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+            
+            // Equipment status
+            const equipmentCount = projectData.scheduledEquipment ? projectData.scheduledEquipment.length : 0;
+            const equipmentStatus = equipmentCount > 0 ? '✅' : '❌';
+            statusHtml += `
+                <div style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; background: ${equipmentCount > 0 ? '#f0fdf4' : '#fef2f2'};">
+                    <div style="font-weight: 600;">${equipmentStatus} Equipment Data</div>
+                    <div style="font-size: 0.85rem; color: #6b7280;">${equipmentCount} equipment items</div>
+                </div>
+            `;
+            
+            // Controller optimization status
+            const optimizationStatus = hasOptimization ? '✅' : '❌';
+            statusHtml += `
+                <div style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; background: ${hasOptimization ? '#f0fdf4' : '#fef2f2'};">
+                    <div style="font-weight: 600;">${optimizationStatus} Controller Optimization</div>
+                    <div style="font-size: 0.85rem; color: #6b7280;">${hasOptimization ? 'Completed' : 'Required for BOQ reports'}</div>
+                </div>
+            `;
+            
+            // Point selection status
+            let totalPoints = 0;
+            if (projectData.scheduledEquipment) {
+                projectData.scheduledEquipment.forEach(equip => {
+                    if (equip.selectedPoints) {
+                        totalPoints += equip.selectedPoints.length;
+                    }
+                });
+            }
+            const pointsStatus = totalPoints > 0 ? '✅' : '❌';
+            statusHtml += `
+                <div style="padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; background: ${totalPoints > 0 ? '#f0fdf4' : '#fef2f2'};">
+                    <div style="font-weight: 600;">${pointsStatus} I/O Points</div>
+                    <div style="font-size: 0.85rem; color: #6b7280;">${totalPoints} points selected</div>
+                </div>
+            `;
+            
+            statusHtml += '</div>';
+            
+            if (!hasOptimization) {
+                statusHtml += `
+                    <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px;">
+                        <div style="font-weight: 600; color: #92400e;">⚠️ Controller Optimization Required</div>
+                        <div style="font-size: 0.85rem; color: #92400e; margin-top: 0.5rem;">
+                            To generate Controller BOQ and Field Devices BOQ reports, you must first complete the controller selection optimization in the Controller Selection page.
+                        </div>
+                        <a href="/controller_selection/${projectId}" style="display: inline-block; margin-top: 0.75rem; padding: 0.5rem 1rem; background: var(--warning-color); color: white; border-radius: 4px; text-decoration: none; font-size: 0.9rem;">
+                            Go to Controller Selection
+                        </a>
+                    </div>
+                `;
+            }
+            
+            statusDiv.innerHTML = statusHtml;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load project status and data
+            loadProjectStatus();
+            updateButtonStates();
+        });
+
+        // Handle checkbox clicks to prevent double-toggling
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+    </script>
+</body>
+</html>
