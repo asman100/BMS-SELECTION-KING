@@ -151,6 +151,30 @@ class Panel(db.Model):
     def to_dict(self):
         return {"id": self.id, "panelName": self.panel_name, "floor": self.floor}
 
+# Equipment Preset Model
+class EquipmentPreset(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    equipment_template_id = db.Column(db.Integer, db.ForeignKey('equipment_template.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    selected_points_json = db.Column(db.Text, nullable=False)  # JSON array of selected point IDs
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    equipment_template = db.relationship('EquipmentTemplate')
+
+    def to_dict(self):
+        import json
+        return {
+            "id": self.id,
+            "name": self.name,
+            "equipment_template_id": self.equipment_template_id,
+            "equipment_type": self.equipment_template.type_key,
+            "equipment_name": self.equipment_template.name,
+            "quantity": self.quantity,
+            "selectedPoints": json.loads(self.selected_points_json),
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
 # Controller Selection Models
 class ControllerType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -464,13 +488,16 @@ def get_all_data(project_id):
     equipment_templates = {et.type_key: et.to_dict() for et in EquipmentTemplate.query.all()}
     # Global parts (sorted for stable UI)
     parts = {p.id: p.to_dict() for p in Part.query.order_by(Part.part_number).all()}
+    # Equipment presets for this project
+    presets = [preset.to_dict() for preset in EquipmentPreset.query.filter_by(project_id=project_id).order_by(EquipmentPreset.created_at.desc()).all()]
     
     return jsonify({
         "panels": panels,
         "scheduledEquipment": scheduled_equipment,
         "pointTemplates": point_templates,
         "equipmentTemplates": equipment_templates,
-        "parts": parts
+        "parts": parts,
+        "presets": presets
     })
 
 @app.route('/api/panel/<int:project_id>', methods=['POST'])
@@ -1832,6 +1859,145 @@ def generate_point_list(project_id):
         'total_equipment_points': total_equipment_points,
         'grand_totals': grand_totals
     }), 200
+
+# Equipment Preset API Routes
+@app.route('/api/projects/<int:project_id>/presets', methods=['GET'])
+@login_required
+def get_equipment_presets(project_id):
+    """Get all equipment presets for a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    presets = EquipmentPreset.query.filter_by(project_id=project_id).order_by(EquipmentPreset.created_at.desc()).all()
+    return jsonify([preset.to_dict() for preset in presets]), 200
+
+@app.route('/api/projects/<int:project_id>/presets', methods=['POST'])
+@login_required
+def create_equipment_preset(project_id):
+    """Create a new equipment preset."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ['name', 'equipment_template_id', 'quantity', 'selectedPoints']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # Check if equipment template exists and belongs to the project
+    equipment_template = EquipmentTemplate.query.filter_by(
+        id=data['equipment_template_id'], 
+        project_id=project_id
+    ).first()
+    if not equipment_template:
+        return jsonify({"error": "Equipment template not found or unauthorized"}), 404
+    
+    # Check if preset name already exists in this project
+    existing_preset = EquipmentPreset.query.filter_by(
+        project_id=project_id, 
+        name=data['name']
+    ).first()
+    if existing_preset:
+        return jsonify({"error": "A preset with this name already exists"}), 409
+    
+    import json
+    new_preset = EquipmentPreset(
+        project_id=project_id,
+        name=data['name'],
+        equipment_template_id=data['equipment_template_id'],
+        quantity=data['quantity'],
+        selected_points_json=json.dumps(data['selectedPoints'])
+    )
+    
+    db.session.add(new_preset)
+    db.session.commit()
+    
+    return jsonify(new_preset.to_dict()), 201
+
+@app.route('/api/projects/<int:project_id>/presets/<int:preset_id>', methods=['DELETE'])
+@login_required
+def delete_equipment_preset(project_id, preset_id):
+    """Delete an equipment preset."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    preset = EquipmentPreset.query.filter_by(id=preset_id, project_id=project_id).first()
+    if not preset:
+        return jsonify({"error": "Preset not found"}), 404
+    
+    db.session.delete(preset)
+    db.session.commit()
+    
+    return jsonify({"message": "Preset deleted successfully"}), 200
+
+@app.route('/api/projects/<int:project_id>/presets/<int:preset_id>/apply', methods=['POST'])
+@login_required
+def apply_equipment_preset(project_id, preset_id):
+    """Apply an equipment preset to a panel."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    data = request.get_json()
+    if not data or 'panel_id' not in data:
+        return jsonify({"error": "Panel ID is required"}), 400
+    
+    panel_id = data['panel_id']
+    instance_name = data.get('instance_name', '')
+    
+    # Validate panel belongs to the project
+    panel = Panel.query.filter_by(id=panel_id, project_id=project_id).first()
+    if not panel:
+        return jsonify({"error": "Panel not found or unauthorized"}), 404
+    
+    # Get the preset
+    preset = EquipmentPreset.query.filter_by(id=preset_id, project_id=project_id).first()
+    if not preset:
+        return jsonify({"error": "Preset not found"}), 404
+    
+    if not instance_name:
+        return jsonify({"error": "Instance name is required"}), 400
+    
+    # Check if instance name already exists in this panel
+    existing_equipment = ScheduledEquipment.query.filter_by(
+        project_id=project_id,
+        panel_id=panel_id,
+        instance_name=instance_name
+    ).first()
+    if existing_equipment:
+        return jsonify({"error": "Equipment with this instance name already exists in this panel"}), 409
+    
+    # Create new scheduled equipment based on the preset
+    import json
+    selected_point_ids = json.loads(preset.selected_points_json)
+    
+    new_equipment = ScheduledEquipment(
+        project_id=project_id,
+        instance_name=instance_name,
+        quantity=preset.quantity,
+        panel_id=panel_id,
+        equipment_template_id=preset.equipment_template_id
+    )
+    
+    db.session.add(new_equipment)
+    db.session.flush()  # Get the ID without committing
+    
+    # Add selected points
+    for point_id in selected_point_ids:
+        point = PointTemplate.query.filter_by(id=point_id, project_id=project_id).first()
+        if point:
+            new_equipment.selected_points.append(point)
+    
+    db.session.commit()
+    
+    return jsonify(new_equipment.to_dict()), 201
 
 @app.route('/api/projects/<int:project_id>/reports/generate', methods=['POST'])
 @login_required
