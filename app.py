@@ -2046,6 +2046,7 @@ def generate_controller_boq_reportlab(project_id, styles):
     """Generate controller BOQ content for reportlab PDF."""
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
     from reportlab.lib import colors
+    import json
     
     story = []
     story.append(Paragraph("Controller Bill of Quantities", styles['Heading2']))
@@ -2082,12 +2083,57 @@ def generate_controller_boq_reportlab(project_id, styles):
             controller_boq[part_num]['quantity'] += selection.quantity
             controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
             total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
     
     # Create table data
     data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
     
-    # Combine all controller items
-    all_controller_items = list(controller_boq.values())
+    # Combine all controller items (controllers, modules, accessories)
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
     
     # Add real controller data
     for item in all_controller_items:
@@ -2208,57 +2254,179 @@ def generate_point_list_reportlab(project_id, styles):
     story.append(Paragraph("Point List", styles['Heading2']))
     story.append(Spacer(1, 12))
     
-    # Get point list data
+    # Get point list data using the same logic as the API
     scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
     
     if not scheduled_equipments:
         story.append(Paragraph("No equipment scheduled in this project.", styles['Normal']))
         return story
     
-    # Create table data
-    data = [['Panel', 'Equipment', 'Point Name', 'Type', 'DI', 'DO', 'AI', 'AO']]
+    # Group by panel (similar to the API logic)
+    panels_data = {}
     
     for equip in scheduled_equipments:
-        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        # Get panel information from relationship
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
+        floor = equip.panel.floor if equip.panel else "Unknown Floor"
         
+        if panel_name not in panels_data:
+            panels_data[panel_name] = {
+                'panel_name': panel_name,
+                'floor': floor,
+                'equipment_points': [],
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+            }
+        
+        # Get selected points for this equipment
         selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
         
-        for point in selected_points:
-            point_type = getattr(point, 'point_type', 'Unknown')
+        for pt in selected_points:
+            # Get quantity from equipment template point relationship
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=equip.equipment_template_id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
             
-            # Count points by type
-            di_count = 1 if point_type == 'DI' else 0
-            do_count = 1 if point_type == 'DO' else 0
-            ai_count = 1 if point_type == 'AI' else 0
-            ao_count = 1 if point_type == 'AO' else 0
-            
+            # Get individual point data from sub_points
+            for sub_point in pt.sub_points:
+                point_type = sub_point.point_type.upper()
+                
+                # Determine communication type - only show protocol if it's a software point
+                communication = ""
+                is_software_point = False
+                if hasattr(pt, 'part_number') and pt.part_number:
+                    # Check if it's a software/network point based on part number patterns
+                    part_num = pt.part_number.upper()
+                    if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        is_software_point = True
+                        if point_type in ['AI', 'AO']:
+                            communication = "BACnet"
+                        else:
+                            communication = "Modbus"
+                
+                # Create individual point entry
+                point_counts = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+                if point_type == 'DI':
+                    point_counts['di'] = point_qty
+                elif point_type == 'DO':
+                    point_counts['do'] = point_qty
+                elif point_type == 'AI':
+                    point_counts['ai'] = point_qty
+                elif point_type == 'AO':
+                    point_counts['ao'] = point_qty
+                
+                panels_data[panel_name]['equipment_points'].append({
+                    'equipment_name': equip.instance_name,
+                    'point_name': pt.name,
+                    'point_type': point_type,
+                    'part_number': getattr(pt, 'part_number', '') or '',
+                    'di': point_counts['di'],
+                    'do': point_counts['do'],
+                    'ai': point_counts['ai'],
+                    'ao': point_counts['ao'],
+                    'communication': communication
+                })
+                
+                # Add to panel totals
+                panels_data[panel_name]['panel_totals']['di'] += point_counts['di']
+                panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
+                panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
+                panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
+                if communication:
+                    panels_data[panel_name]['panel_totals']['communication'] += 1
+    
+    # Create table data with panel grouping
+    data = [['EQUIPMENT NAME', 'POINT NAME', 'PART NUMBER', 'Sum of DI', 'Sum of DO', 'Sum of AI', 'Sum of AO', 'SOFTWARE']]
+    
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+    
+    for panel_name, panel_data in panels_data.items():
+        # Add panel header row
+        data.append([f"{panel_name} ({panel_data['floor']})", '', '', '', '', '', '', ''])
+        
+        # Add equipment points for this panel
+        for point in panel_data['equipment_points']:
             data.append([
-                panel_name,
-                equip.instance_name,
-                point.name,
-                point_type,
-                str(di_count),
-                str(do_count),
-                str(ai_count),
-                str(ao_count)
+                point['equipment_name'],
+                point['point_name'], 
+                point['part_number'],
+                str(point['di']),
+                str(point['do']),
+                str(point['ai']),
+                str(point['ao']),
+                point['communication']
             ])
+        
+        # Add panel totals
+        panel_totals = panel_data['panel_totals']
+        data.append([
+            f"Total for {panel_name}",
+            '', '',
+            str(panel_totals['di']),
+            str(panel_totals['do']),
+            str(panel_totals['ai']),
+            str(panel_totals['ao']),
+            str(panel_totals['communication']) if panel_totals['communication'] > 0 else ''
+        ])
+        
+        # Add to grand totals
+        grand_totals['di'] += panel_totals['di']
+        grand_totals['do'] += panel_totals['do']
+        grand_totals['ai'] += panel_totals['ai']
+        grand_totals['ao'] += panel_totals['ao']
+        grand_totals['communication'] += panel_totals['communication']
+        
+        # Add empty row for spacing
+        data.append(['', '', '', '', '', '', '', ''])
+    
+    # Add grand total row
+    data.append([
+        'Grand Total',
+        '', '',
+        str(grand_totals['di']),
+        str(grand_totals['do']),
+        str(grand_totals['ai']),
+        str(grand_totals['ao']),
+        str(grand_totals['communication']) if grand_totals['communication'] > 0 else ''
+    ])
     
     if len(data) == 1:  # Only header
         story.append(Paragraph("No I/O points selected for equipment in this project.", styles['Normal']))
         return story
     
-    # Create table
+    # Create table with special styling for headers and totals
     table = Table(data)
     table.setStyle(TableStyle([
+        # Header row styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        # Data rows
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('GRID', (0, 0), (-1, -1), 1, colors.black)
     ]))
+    
+    # Add special styling for panel headers and totals
+    for i, row in enumerate(data):
+        if i > 0:  # Skip header row
+            if row[0].startswith('Total for ') or row[0] == 'Grand Total':
+                # Total rows - bold and light grey background
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.lightgrey),
+                    ('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold'),
+                ]))
+            elif row[1] == '' and row[2] == '' and not row[0].startswith('Total'):
+                # Panel header rows - darker background
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.lightblue),
+                    ('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold'),
+                ]))
     
     story.append(table)
     story.append(Spacer(1, 30))
