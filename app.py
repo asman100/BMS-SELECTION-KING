@@ -1866,7 +1866,7 @@ def generate_reports(project_id):
                 
                 # Try to compile with pdflatex
                 try:
-                    subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                    result = subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
                                  check=True, capture_output=True, text=True)
                     
                     # Run again for references
@@ -1886,6 +1886,9 @@ def generate_reports(project_id):
                     except Exception as reportlab_error:
                         # Both methods failed, will show LaTeX preview
                         print(f"Both PDF generation methods failed: pdflatex: {e}, reportlab: {reportlab_error}")
+                        # Add detailed error logging
+                        if hasattr(e, 'stderr') and e.stderr:
+                            print(f"pdflatex stderr: {e.stderr}")
                         pass
         except Exception as e:
             print(f"Error in PDF preview generation: {e}")
@@ -1933,59 +1936,74 @@ def validate_report_prerequisites(project_id, selected_reports):
 
 def generate_pdf_with_reportlab(project_id, selected_reports, header, footer, company_info):
     """Generate PDF using reportlab as fallback when LaTeX is not available."""
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter, A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    import io
-    import base64
-    
-    # Create PDF in memory
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    # Title
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=24,
-        spaceAfter=30,
-        alignment=1,  # Center alignment
-    )
-    story.append(Paragraph("BMS Project Reports", title_style))
-    story.append(Spacer(1, 20))
-    
-    # Company info
-    if company_info:
-        story.append(Paragraph(company_info.replace('\n', '<br/>'), styles['Normal']))
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
+        import io
+        import base64
+        
+        # Create PDF in memory
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=1,  # Center alignment
+        )
+        story.append(Paragraph("BMS Project Reports", title_style))
         story.append(Spacer(1, 20))
-    
-    # Generate each selected report
-    for report_type in selected_reports:
-        if report_type == 'equipment-list':
-            story.extend(generate_equipment_list_reportlab(project_id, styles))
-        elif report_type == 'point-list':
-            story.extend(generate_point_list_reportlab(project_id, styles))
-        elif report_type == 'field-devices-boq':
-            story.extend(generate_field_devices_boq_reportlab(project_id, styles))
-        elif report_type == 'controller-boq':
-            story.extend(generate_controller_boq_reportlab(project_id, styles))
-    
-    # Build PDF
-    doc.build(story)
-    
-    # Get PDF content and encode as base64
-    pdf_content = buffer.getvalue()
-    buffer.close()
-    
-    return f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+        
+        # Company info
+        if company_info:
+            story.append(Paragraph(company_info.replace('\n', '<br/>'), styles['Normal']))
+            story.append(Spacer(1, 20))
+        
+        # Generate each selected report
+        for report_type in selected_reports:
+            try:
+                if report_type == 'equipment-list':
+                    story.extend(generate_equipment_list_reportlab(project_id, styles))
+                elif report_type == 'point-list':
+                    story.extend(generate_point_list_reportlab(project_id, styles))
+                elif report_type == 'field-devices-boq':
+                    story.extend(generate_field_devices_boq_reportlab(project_id, styles))
+                elif report_type == 'controller-boq':
+                    story.extend(generate_controller_boq_reportlab(project_id, styles))
+            except Exception as report_error:
+                print(f"Error generating {report_type}: {report_error}")
+                # Add error message to PDF instead of failing completely
+                story.append(Paragraph(f"Error generating {report_type}: {str(report_error)}", styles['Normal']))
+                story.append(Spacer(1, 20))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get PDF content and encode as base64
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        
+        return f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+        
+    except ImportError as e:
+        raise Exception(f"ReportLab not available: {e}")
+    except Exception as e:
+        raise Exception(f"ReportLab PDF generation failed: {e}")
 
 def generate_equipment_list_reportlab(project_id, styles):
     """Generate equipment list content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
     story = []
     story.append(Paragraph("Equipment List", styles['Heading2']))
     story.append(Spacer(1, 12))
@@ -2026,6 +2044,9 @@ def generate_equipment_list_reportlab(project_id, styles):
 
 def generate_controller_boq_reportlab(project_id, styles):
     """Generate controller BOQ content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
     story = []
     story.append(Paragraph("Controller Bill of Quantities", styles['Heading2']))
     story.append(Spacer(1, 12))
@@ -2103,6 +2124,9 @@ def generate_controller_boq_reportlab(project_id, styles):
 
 def generate_field_devices_boq_reportlab(project_id, styles):
     """Generate field devices BOQ content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
     story = []
     story.append(Paragraph("Field Devices Bill of Quantities", styles['Heading2']))
     story.append(Spacer(1, 12))
@@ -2177,6 +2201,9 @@ def generate_field_devices_boq_reportlab(project_id, styles):
 
 def generate_point_list_reportlab(project_id, styles):
     """Generate point list content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
     story = []
     story.append(Paragraph("Point List", styles['Heading2']))
     story.append(Spacer(1, 12))
