@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
@@ -6,7 +6,13 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import csv
 import json
+import tempfile
+import subprocess
 from datetime import datetime
+from pylatex import Document, Section, Subsection, Table, Tabular, Command
+from pylatex.utils import italic, bold, NoEscape
+from pylatex.base_classes import Environment
+from pylatex.package import Package
 
 # --- APP SETUP ---
 app = Flask(__name__)
@@ -600,6 +606,16 @@ def controller_selection_page(project_id):
         flash("You do not have permission to access this project.", "danger")
         return redirect(url_for('project_selection'))
     return render_template('controller_selection.html', project_id=project.id)
+
+@app.route('/reports_output/<int:project_id>')
+@login_required
+def reports_output_page(project_id):
+    """Render the reports output page for PDF generation."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        flash("You do not have permission to access this project.", "danger")
+        return redirect(url_for('project_selection'))
+    return render_template('reports_output.html', project_id=project.id)
 @app.route('/api/panel/<int:project_id>/<int:panel_id>', methods=['DELETE'])
 @login_required
 def delete_panel(project_id, panel_id):
@@ -1807,6 +1823,997 @@ def generate_point_list(project_id):
         'total_equipment_points': total_equipment_points,
         'grand_totals': grand_totals
     }), 200
+
+@app.route('/api/projects/<int:project_id>/reports/generate', methods=['POST'])
+@login_required
+def generate_reports(project_id):
+    """Generate LaTeX content for selected reports."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    selected_reports = data.get('reports', [])
+    header = data.get('header', '')
+    footer = data.get('footer', '')
+    company_info = data.get('company_info', '')
+
+    if not selected_reports:
+        return jsonify({"error": "No reports selected"}), 400
+
+    # Check if required data is available for selected reports
+    validation_errors = validate_report_prerequisites(project_id, selected_reports)
+    if validation_errors:
+        return jsonify({"error": "Missing required data", "details": validation_errors}), 400
+
+    try:
+        latex_content = generate_latex_content(project_id, selected_reports, header, footer, company_info)
+        
+        # Try to generate PDF for preview using reportlab as fallback
+        pdf_preview_url = None
+        try:
+            # First try pdflatex if available
+            with tempfile.TemporaryDirectory() as temp_dir:
+                tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
+                pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
+                
+                # Write LaTeX content to file
+                with open(tex_file, 'w', encoding='utf-8') as f:
+                    f.write(latex_content)
+                
+                # Try to compile with pdflatex
+                try:
+                    result = subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                                 check=True, capture_output=True, text=True)
+                    
+                    # Run again for references
+                    subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                                 check=True, capture_output=True, text=True)
+                    
+                    # Read PDF content and encode as base64 for preview
+                    if os.path.exists(pdf_file):
+                        import base64
+                        with open(pdf_file, 'rb') as f:
+                            pdf_content = f.read()
+                        pdf_preview_url = f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    # pdflatex failed, try alternative PDF generation using reportlab
+                    try:
+                        pdf_preview_url = generate_pdf_with_reportlab(project_id, selected_reports, header, footer, company_info)
+                    except Exception as reportlab_error:
+                        # Both methods failed, will show LaTeX preview
+                        print(f"Both PDF generation methods failed: pdflatex: {e}, reportlab: {reportlab_error}")
+                        # Add detailed error logging
+                        if hasattr(e, 'stderr') and e.stderr:
+                            print(f"pdflatex stderr: {e.stderr}")
+                        pass
+        except Exception as e:
+            print(f"Error in PDF preview generation: {e}")
+            pass
+        
+        return jsonify({
+            'latex_content': latex_content,
+            'reports': selected_reports,
+            'pdf_preview_url': pdf_preview_url
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def validate_report_prerequisites(project_id, selected_reports):
+    """Validate that all required data is available for the selected reports."""
+    errors = []
+    
+    # Check if controller selection optimization has been completed
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    has_optimization = len(controller_selections) > 0
+    
+    # Check which reports require controller optimization
+    reports_requiring_optimization = ['field-devices-boq', 'controller-boq']
+    
+    for report_type in selected_reports:
+        if report_type in reports_requiring_optimization and not has_optimization:
+            errors.append(f"{report_type.replace('-', ' ').title()}: Requires controller selection optimization to be completed first")
+        
+        # Additional validations for specific reports
+        if report_type == 'equipment-list':
+            # Check if there are scheduled equipments
+            scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+            if not scheduled_equipments:
+                errors.append("Equipment List: No equipment scheduled in project")
+        
+        if report_type == 'point-list':
+            # Check if there are scheduled equipments with selected points
+            scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+            has_points = any(len(equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points) > 0 
+                           for equip in scheduled_equipments)
+            if not has_points:
+                errors.append("Point List: No I/O points selected for equipment")
+    
+    return errors
+
+def generate_pdf_with_reportlab(project_id, selected_reports, header, footer, company_info):
+    """Generate PDF using reportlab as fallback when LaTeX is not available."""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
+        import io
+        import base64
+        
+        # Create PDF in memory
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=1,  # Center alignment
+        )
+        story.append(Paragraph("BMS Project Reports", title_style))
+        story.append(Spacer(1, 20))
+        
+        # Company info
+        if company_info:
+            story.append(Paragraph(company_info.replace('\n', '<br/>'), styles['Normal']))
+            story.append(Spacer(1, 20))
+        
+        # Generate each selected report
+        for report_type in selected_reports:
+            try:
+                if report_type == 'equipment-list':
+                    story.extend(generate_equipment_list_reportlab(project_id, styles))
+                elif report_type == 'point-list':
+                    story.extend(generate_point_list_reportlab(project_id, styles))
+                elif report_type == 'field-devices-boq':
+                    story.extend(generate_field_devices_boq_reportlab(project_id, styles))
+                elif report_type == 'controller-boq':
+                    story.extend(generate_controller_boq_reportlab(project_id, styles))
+            except Exception as report_error:
+                print(f"Error generating {report_type}: {report_error}")
+                # Add error message to PDF instead of failing completely
+                story.append(Paragraph(f"Error generating {report_type}: {str(report_error)}", styles['Normal']))
+                story.append(Spacer(1, 20))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get PDF content and encode as base64
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        
+        return f"data:application/pdf;base64,{base64.b64encode(pdf_content).decode('utf-8')}"
+        
+    except ImportError as e:
+        raise Exception(f"ReportLab not available: {e}")
+    except Exception as e:
+        raise Exception(f"ReportLab PDF generation failed: {e}")
+
+def generate_equipment_list_reportlab(project_id, styles):
+    """Generate equipment list content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    story = []
+    story.append(Paragraph("Equipment List", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get equipment data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    if not scheduled_equipments:
+        story.append(Paragraph("No equipment scheduled in this project.", styles['Normal']))
+        return story
+    
+    # Create table data
+    data = [['Panel', 'Equipment Type', 'Instance Name', 'Quantity', 'Floor']]
+    
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        floor = equip.panel.floor if equip.panel else "Unknown"
+        equipment_type = equip.equipment_template.name if equip.equipment_template else "Unknown"
+        
+        data.append([panel_name, equipment_type, equip.instance_name, str(equip.quantity), floor])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_controller_boq_reportlab(project_id, styles):
+    """Generate controller BOQ content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    import json
+    
+    story = []
+    story.append(Paragraph("Controller Bill of Quantities", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get controller selections and generate real BOQ data
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    if not controller_selections:
+        story.append(Paragraph("No controller optimization completed. Please run controller selection optimization first.", styles['Normal']))
+        return story
+    
+    controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
+    
+    # Create table data
+    data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
+    
+    # Combine all controller items (controllers, modules, accessories)
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
+    
+    # Add real controller data
+    for item in all_controller_items:
+        data.append([
+            item['part_number'],
+            item['name'],
+            item['category'],
+            str(item['quantity']),
+            f"${item['unit_cost']:.2f}",
+            f"${item['total_cost']:.2f}"
+        ])
+    
+    # Add total row
+    data.append(['', '', '', '', 'TOTAL:', f"${total_controller_cost:.2f}"])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_field_devices_boq_reportlab(project_id, styles):
+    """Generate field devices BOQ content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    story = []
+    story.append(Paragraph("Field Devices Bill of Quantities", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Generate field devices BOQ data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += 1
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += (part.cost or 0)
+    
+    if not field_devices_boq:
+        story.append(Paragraph("No field devices with parts found in this project.", styles['Normal']))
+        return story
+    
+    # Create table data
+    data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
+    
+    # Add field devices data
+    for item in field_devices_boq.values():
+        data.append([
+            item['part_number'],
+            item['name'],
+            item['category'],
+            str(item['quantity']),
+            f"${item['unit_cost']:.2f}",
+            f"${item['total_cost']:.2f}"
+        ])
+    
+    # Add total row
+    data.append(['', '', '', '', 'TOTAL:', f"${total_field_cost:.2f}"])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+def generate_point_list_reportlab(project_id, styles):
+    """Generate point list content for reportlab PDF."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    story = []
+    story.append(Paragraph("Point List", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    # Get point list data using the same logic as the API
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    if not scheduled_equipments:
+        story.append(Paragraph("No equipment scheduled in this project.", styles['Normal']))
+        return story
+    
+    # Group by panel (similar to the API logic)
+    panels_data = {}
+    
+    for equip in scheduled_equipments:
+        # Get panel information from relationship
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
+        floor = equip.panel.floor if equip.panel else "Unknown Floor"
+        
+        if panel_name not in panels_data:
+            panels_data[panel_name] = {
+                'panel_name': panel_name,
+                'floor': floor,
+                'equipment_points': [],
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+            }
+        
+        # Get selected points for this equipment
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            # Get quantity from equipment template point relationship
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=equip.equipment_template_id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+            
+            # Get individual point data from sub_points
+            for sub_point in pt.sub_points:
+                point_type = sub_point.point_type.upper()
+                
+                # Determine communication type - only show protocol if it's a software point
+                communication = ""
+                is_software_point = False
+                if hasattr(pt, 'part_number') and pt.part_number:
+                    # Check if it's a software/network point based on part number patterns
+                    part_num = pt.part_number.upper()
+                    if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        is_software_point = True
+                        if point_type in ['AI', 'AO']:
+                            communication = "BACnet"
+                        else:
+                            communication = "Modbus"
+                
+                # Create individual point entry
+                point_counts = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+                if point_type == 'DI':
+                    point_counts['di'] = point_qty
+                elif point_type == 'DO':
+                    point_counts['do'] = point_qty
+                elif point_type == 'AI':
+                    point_counts['ai'] = point_qty
+                elif point_type == 'AO':
+                    point_counts['ao'] = point_qty
+                
+                panels_data[panel_name]['equipment_points'].append({
+                    'equipment_name': equip.instance_name,
+                    'point_name': pt.name,
+                    'point_type': point_type,
+                    'part_number': getattr(pt, 'part_number', '') or '',
+                    'di': point_counts['di'],
+                    'do': point_counts['do'],
+                    'ai': point_counts['ai'],
+                    'ao': point_counts['ao'],
+                    'communication': communication
+                })
+                
+                # Add to panel totals
+                panels_data[panel_name]['panel_totals']['di'] += point_counts['di']
+                panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
+                panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
+                panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
+                if communication:
+                    panels_data[panel_name]['panel_totals']['communication'] += 1
+    
+    # Create table data with panel grouping
+    data = [['EQUIPMENT NAME', 'POINT NAME', 'PART NUMBER', 'Sum of DI', 'Sum of DO', 'Sum of AI', 'Sum of AO', 'SOFTWARE']]
+    
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+    
+    for panel_name, panel_data in panels_data.items():
+        # Add panel header row
+        data.append([f"{panel_name} ({panel_data['floor']})", '', '', '', '', '', '', ''])
+        
+        # Add equipment points for this panel
+        for point in panel_data['equipment_points']:
+            data.append([
+                point['equipment_name'],
+                point['point_name'], 
+                point['part_number'],
+                str(point['di']),
+                str(point['do']),
+                str(point['ai']),
+                str(point['ao']),
+                point['communication']
+            ])
+        
+        # Add panel totals
+        panel_totals = panel_data['panel_totals']
+        data.append([
+            f"Total for {panel_name}",
+            '', '',
+            str(panel_totals['di']),
+            str(panel_totals['do']),
+            str(panel_totals['ai']),
+            str(panel_totals['ao']),
+            str(panel_totals['communication']) if panel_totals['communication'] > 0 else ''
+        ])
+        
+        # Add to grand totals
+        grand_totals['di'] += panel_totals['di']
+        grand_totals['do'] += panel_totals['do']
+        grand_totals['ai'] += panel_totals['ai']
+        grand_totals['ao'] += panel_totals['ao']
+        grand_totals['communication'] += panel_totals['communication']
+        
+        # Add empty row for spacing
+        data.append(['', '', '', '', '', '', '', ''])
+    
+    # Add grand total row
+    data.append([
+        'Grand Total',
+        '', '',
+        str(grand_totals['di']),
+        str(grand_totals['do']),
+        str(grand_totals['ai']),
+        str(grand_totals['ao']),
+        str(grand_totals['communication']) if grand_totals['communication'] > 0 else ''
+    ])
+    
+    if len(data) == 1:  # Only header
+        story.append(Paragraph("No I/O points selected for equipment in this project.", styles['Normal']))
+        return story
+    
+    # Create table with special styling for headers and totals
+    table = Table(data)
+    table.setStyle(TableStyle([
+        # Header row styling
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        # Data rows
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    # Add special styling for panel headers and totals
+    for i, row in enumerate(data):
+        if i > 0:  # Skip header row
+            if row[0].startswith('Total for ') or row[0] == 'Grand Total':
+                # Total rows - bold and light grey background
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.lightgrey),
+                    ('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold'),
+                ]))
+            elif row[1] == '' and row[2] == '' and not row[0].startswith('Total'):
+                # Panel header rows - darker background
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.lightblue),
+                    ('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold'),
+                ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 30))
+    return story
+
+@app.route('/api/projects/<int:project_id>/reports/pdf', methods=['POST'])
+@login_required
+def generate_pdf(project_id):
+    """Generate PDF from LaTeX content."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data or 'latex_content' not in data:
+        return jsonify({"error": "No LaTeX content provided"}), 400
+
+    try:
+        # Create temporary files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
+            pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
+            
+            # Write LaTeX content to file
+            with open(tex_file, 'w', encoding='utf-8') as f:
+                f.write(data['latex_content'])
+            
+            # Try to compile with pdflatex (if available)
+            try:
+                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                             check=True, capture_output=True, text=True)
+                
+                # Run again for references
+                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
+                             check=True, capture_output=True, text=True)
+                
+                return send_file(pdf_file, as_attachment=True, 
+                               download_name=f"bms_reports_project_{project_id}.pdf")
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # If pdflatex is not available, return error with suggestion
+                return jsonify({
+                    "error": "PDF generation requires LaTeX installation. Please install TeX Live or MiKTeX and try again. You can download the LaTeX source instead."
+                }), 500
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def generate_latex_content(project_id, selected_reports, header, footer, company_info):
+    """Generate LaTeX content for the selected reports."""
+    
+    # Start building LaTeX document
+    latex_content = r"""\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{ifthen}
+
+\geometry{margin=1in}
+\pagestyle{fancy}
+
+"""
+
+    # Enhanced header and footer setup with image support
+    header_content = header.replace('\n', r'\\')
+    footer_content = footer.replace('\n', r'\\')
+    company_content = company_info.replace('\n', r'\\')
+    
+    # Check if header/footer contain image paths (simple check for common image extensions)
+    header_has_image = any(ext in header.lower() for ext in ['.png', '.jpg', '.jpeg', '.pdf', '.eps'])
+    footer_has_image = any(ext in footer.lower() for ext in ['.png', '.jpg', '.jpeg', '.pdf', '.eps'])
+    
+    latex_content += r"""
+% Header and footer setup with image support
+"""
+    
+    if header_has_image:
+        # If header contains image path, treat it as an image
+        latex_content += f"\\fancyhead[L]{{\\includegraphics[height=1cm]{{{header_content}}}}}\n"
+    else:
+        # Regular text header
+        latex_content += f"\\fancyhead[L]{{{header_content}}}\n"
+    
+    latex_content += r"\fancyhead[R]{\today}" + "\n"
+    
+    if footer_has_image:
+        # If footer contains image path, treat it as an image
+        latex_content += f"\\fancyfoot[L]{{\\includegraphics[height=0.8cm]{{{company_content}}}}}\n"
+        latex_content += f"\\fancyfoot[C]{{{footer_content}}}\n"
+    else:
+        # Regular text footer
+        latex_content += f"\\fancyfoot[L]{{{company_content}}}\n"
+        latex_content += f"\\fancyfoot[C]{{{footer_content}}}\n"
+    
+    latex_content += r"\fancyfoot[R]{\thepage\ of \pageref{LastPage}}" + "\n"
+
+    latex_content += r"""
+\title{BMS Project Reports}
+\author{""" + (company_info.split('\n')[0] if company_info else 'BMS Selection Tool') + r"""}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+"""
+
+    # Generate content for each selected report
+    for report_type in selected_reports:
+        if report_type == 'equipment-list':
+            latex_content += generate_equipment_list_latex(project_id)
+        elif report_type == 'point-list':
+            latex_content += generate_point_list_latex(project_id)
+        elif report_type == 'field-devices-boq':
+            latex_content += generate_field_devices_boq_latex(project_id)
+        elif report_type == 'controller-boq':
+            latex_content += generate_controller_boq_latex(project_id)
+
+    latex_content += r"""
+\end{document}
+"""
+
+    return latex_content
+
+def generate_equipment_list_latex(project_id):
+    """Generate LaTeX content for equipment list."""
+    
+    # Get equipment data
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    latex_content = r"""
+\section{Equipment List}
+
+This section provides a complete list of all scheduled equipment in the project.
+
+\begin{longtable}{|l|l|l|l|l|}
+\hline
+\textbf{Panel} & \textbf{Equipment Type} & \textbf{Instance Name} & \textbf{Quantity} & \textbf{Floor} \\
+\hline
+\endhead
+"""
+
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        floor = equip.panel.floor if equip.panel else "Unknown"
+        equipment_type = equip.equipment_template.name if equip.equipment_template else "Unknown"
+        
+        latex_content += f"{panel_name} & {equipment_type} & {equip.instance_name} & {equip.quantity} & {floor} \\\\\n\\hline\n"
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
+
+def generate_point_list_latex(project_id):
+    """Generate LaTeX content for point list."""
+    
+    # Get point list data (reuse existing logic)
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    latex_content = r"""
+\section{Point List}
+
+This section provides a detailed breakdown of I/O points by equipment.
+
+\begin{longtable}{|l|l|l|l|l|l|l|l|}
+\hline
+\textbf{Panel} & \textbf{Equipment} & \textbf{Point Name} & \textbf{Type} & \textbf{DI} & \textbf{DO} & \textbf{AI} & \textbf{AO} \\
+\hline
+\endhead
+"""
+
+    for equip in scheduled_equipments:
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        
+        for point in equip.selected_points:
+            point_type = getattr(point, 'point_type', 'Unknown')
+            
+            # Count points by type
+            di_count = 1 if point_type == 'DI' else 0
+            do_count = 1 if point_type == 'DO' else 0
+            ai_count = 1 if point_type == 'AI' else 0
+            ao_count = 1 if point_type == 'AO' else 0
+            
+            latex_content += f"{panel_name} & {equip.instance_name} & {point.name} & {point_type} & {di_count} & {do_count} & {ai_count} & {ao_count} \\\\\n\\hline\n"
+
+    latex_content += r"""
+\end{longtable}
+
+"""
+    return latex_content
+
+def generate_field_devices_boq_latex(project_id):
+    """Generate LaTeX content for field devices BOQ using real data."""
+    
+    # Get real BOQ data from the existing API
+    from urllib.parse import urljoin
+    import requests
+    
+    # Instead of making HTTP request, directly call the BOQ generation logic
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    field_devices_boq = {}
+    total_field_cost = 0
+    
+    for equip in scheduled_equipments:
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            if pt.part:  # Only include points with associated parts
+                part = pt.part
+                part_num = part.part_number
+                
+                # Calculate quantity needed
+                etp = EquipmentTemplatePoint.query.filter_by(
+                    equipment_template_id=equip.equipment_template_id, 
+                    point_template_id=pt.id
+                ).first()
+                per_template_qty = etp.quantity if etp and etp.quantity else 1
+                total_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
+                
+                if part_num not in field_devices_boq:
+                    field_devices_boq[part_num] = {
+                        'name': part.description,
+                        'part_number': part_num,
+                        'category': part.category or 'Field Device',
+                        'quantity': 0,
+                        'unit_cost': part.cost or 0,
+                        'total_cost': 0
+                    }
+                
+                field_devices_boq[part_num]['quantity'] += total_qty
+                field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
+                total_field_cost += total_qty * (part.cost or 0)
+    
+    latex_content = r"""
+\section{Field Devices Bill of Quantities}
+
+This section provides a bill of quantities for all field devices based on the scheduled equipment and selected I/O points.
+
+\begin{longtable}{|l|l|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+
+    # Add real field devices data
+    for item in field_devices_boq.values():
+        part_num = item['part_number']
+        description = item['name']
+        category = item['category']
+        quantity = item['quantity']
+        unit_cost = item['unit_cost']
+        total_cost = item['total_cost']
+        
+        latex_content += f"{part_num} & {description} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+
+    latex_content += f"""
+\\hline
+\\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_field_cost:.2f}}} \\\\
+\\hline
+\\end{{longtable}}
+
+"""
+    return latex_content
+
+def generate_controller_boq_latex(project_id):
+    """Generate LaTeX content for controller BOQ using real data."""
+    
+    # Get controller selections and generate real BOQ data
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    controller_boq = {}
+    accessory_boq = {}
+    module_boq = {}
+    total_controller_cost = 0
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            part_num = controller.part_number
+            
+            # Add controller to BOQ
+            if part_num not in controller_boq:
+                controller_boq[part_num] = {
+                    'name': controller.name,
+                    'part_number': part_num,
+                    'quantity': 0,
+                    'unit_cost': controller.cost,
+                    'total_cost': 0,
+                    'is_server': controller.is_server,
+                    'category': 'Server' if controller.is_server else 'Controller'
+                }
+            
+            controller_boq[part_num]['quantity'] += selection.quantity
+            controller_boq[part_num]['total_cost'] = controller_boq[part_num]['quantity'] * controller.cost
+            total_controller_cost += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                acc_part_num = accessory.part_number
+                if acc_part_num not in accessory_boq:
+                    accessory_boq[acc_part_num] = {
+                        'name': accessory.name,
+                        'part_number': acc_part_num,
+                        'quantity': 0,
+                        'unit_cost': accessory.cost,
+                        'total_cost': 0,
+                        'category': 'Accessory'
+                    }
+                
+                accessory_boq[acc_part_num]['quantity'] += selection.quantity
+                accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                total_controller_cost += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_part_num = module.part_number
+                    module_qty = module_data.get('quantity', 1)
+                    
+                    if module_part_num not in module_boq:
+                        module_boq[module_part_num] = {
+                            'name': module.name,
+                            'part_number': module_part_num,
+                            'quantity': 0,
+                            'unit_cost': module.cost,
+                            'total_cost': 0,
+                            'category': 'Server Module'
+                        }
+                    
+                    module_boq[module_part_num]['quantity'] += module_qty
+                    module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
+                    total_controller_cost += module_qty * module.cost
+    
+    latex_content = r"""
+\section{Controller Bill of Quantities}
+
+This section provides a bill of quantities for controllers, servers, modules, and accessories based on the optimization results.
+
+\begin{longtable}{|l|l|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+
+    # Combine all controller items
+    all_controller_items = (
+        list(controller_boq.values()) + 
+        list(module_boq.values()) + 
+        list(accessory_boq.values())
+    )
+    
+    # Add real controller data
+    for item in all_controller_items:
+        part_num = item['part_number']
+        name = item['name']
+        category = item['category']
+        quantity = item['quantity']
+        unit_cost = item['unit_cost']
+        total_cost = item['total_cost']
+        
+        latex_content += f"{part_num} & {name} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+
+    latex_content += f"""
+\\hline
+\\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_controller_cost:.2f}}} \\\\
+\\hline
+\\end{{longtable}}
+
+"""
+    return latex_content
 
 # --- SOCKET.IO ---
 
