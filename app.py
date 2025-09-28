@@ -1053,6 +1053,7 @@ def optimize_controller_selection(project_id):
     data = request.get_json()
     server_panels = data.get('server_panels', [])  # List of panel IDs selected as servers
     selected_solutions = data.get('selected_solutions', {})  # Selected solution for each server panel
+    spare_percentage = data.get('spare_percentage', 0)  # Spare percentage for point calculations
     
     # Clear existing selections for this project
     ControllerSelection.query.filter_by(project_id=project_id).delete()
@@ -1086,7 +1087,7 @@ def optimize_controller_selection(project_id):
     ).all()
 
     # Run optimization algorithm for non-server panels
-    optimization_result = run_controller_optimization(project_id, panels_to_optimize)
+    optimization_result = run_controller_optimization(project_id, panels_to_optimize, spare_percentage)
     
     # Save optimization results
     for panel_id, controller_selection in optimization_result.items():
@@ -1415,11 +1416,11 @@ def generate_asb_solution(asb_server, requirements):
         'description': f"AS-B {asb_server.name} (fixed capacity)"
     }
 
-def run_controller_optimization(project_id, panels):
+def run_controller_optimization(project_id, panels, spare_percentage=0):
     """
     Optimize controller selection for given panels.
     This is a simplified optimization algorithm that selects the most cost-effective
-    controllers based on point requirements.
+    controllers based on point requirements, with optional spare point percentage.
     """
     optimization_result = {}
     
@@ -1428,7 +1429,7 @@ def run_controller_optimization(project_id, panels):
     
     for panel in panels:
         # Get panel point requirements
-        panel_points = get_panel_point_requirements(project_id, panel.id)
+        panel_points = get_panel_point_requirements(project_id, panel.id, spare_percentage)
 
         # Skip panels with no points
         if sum(panel_points.values()) == 0:
@@ -1445,8 +1446,8 @@ def run_controller_optimization(project_id, panels):
     
     return optimization_result
 
-def get_panel_point_requirements(project_id, panel_id):
-    """Get point requirements for a specific panel."""
+def get_panel_point_requirements(project_id, panel_id, spare_percentage=0):
+    """Get point requirements for a specific panel, with optional spare percentage."""
     requirements = {
         'AI': 0, 'AO': 0, 'DI': 0, 'DO': 0, 'UI': 0
     }
@@ -1469,6 +1470,14 @@ def get_panel_point_requirements(project_id, panel_id):
                 point_type = sp.point_type.upper()
                 if point_type in requirements:
                     requirements[point_type] += point_repeat
+    
+    # Apply spare percentage to each point type
+    if spare_percentage > 0:
+        import math
+        for point_type in requirements:
+            if requirements[point_type] > 0:
+                spare_points = math.ceil(requirements[point_type] * spare_percentage / 100)
+                requirements[point_type] += spare_points
     
     return requirements
 
