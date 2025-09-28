@@ -1553,9 +1553,6 @@
         }
     });
 
-    // Save Preset Button Handler
-    document.getElementById('save-preset-btn').addEventListener('click', showSavePresetModal);
-
     // Helper function to get selected points
     function getSelectedPoints() {
         const checkboxContainer = document.getElementById('checkbox-container');
@@ -2095,7 +2092,9 @@
         document.querySelectorAll(".panel-list summary, .equipment-sublist a").forEach(el => el.classList.remove("active"));
         formTitle.textContent = "Add New Equipment";
         mainHeader.textContent = "Workspace";
-        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button>`;
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button><button type="button" id="save-preset-btn" class="btn btn-success" style="margin-left: 10px;">Save as Preset</button>`;
+        // Re-bind event listener for the dynamically created Save Preset button
+        document.getElementById('save-preset-btn').addEventListener('click', showSavePresetModal);
         panelNameInput.readOnly = false;
         floorNameInput.readOnly = false
     }
