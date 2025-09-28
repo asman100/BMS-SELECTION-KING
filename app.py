@@ -2768,7 +2768,7 @@ This section provides a complete list of all scheduled equipment in the project.
 def generate_point_list_latex(project_id):
     """Generate LaTeX content for point list."""
     
-    # Get point list data (reuse existing logic)
+    # Get point list data using the same comprehensive logic as reportlab version
     scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
     
     latex_content = r"""
@@ -2776,26 +2776,122 @@ def generate_point_list_latex(project_id):
 
 This section provides a detailed breakdown of I/O points by equipment.
 
-\begin{longtable}{|l|l|l|l|l|l|l|l|}
+\begin{longtable}{|l|l|p{3cm}|l|l|l|l|l|}
 \hline
-\textbf{Panel} & \textbf{Equipment} & \textbf{Point Name} & \textbf{Type} & \textbf{DI} & \textbf{DO} & \textbf{AI} & \textbf{AO} \\
+\textbf{Equipment} & \textbf{Point Name} & \textbf{Part Number} & \textbf{Sum of DI} & \textbf{Sum of DO} & \textbf{Sum of AI} & \textbf{Sum of AO} & \textbf{Software} \\
 \hline
 \endhead
 """
 
+    # Group by panel (same logic as reportlab version)
+    panels_data = {}
+    
     for equip in scheduled_equipments:
-        panel_name = equip.panel.panel_name if equip.panel else "Unknown"
+        # Get panel information from relationship
+        panel_name = equip.panel.panel_name if equip.panel else "Unknown Panel"
+        floor = equip.panel.floor if equip.panel else "Unknown Floor"
         
-        for point in equip.selected_points:
-            point_type = getattr(point, 'point_type', 'Unknown')
+        if panel_name not in panels_data:
+            panels_data[panel_name] = {
+                'panel_name': panel_name,
+                'floor': floor,
+                'equipment_points': [],
+                'panel_totals': {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+            }
+        
+        # Get selected points for this equipment
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            # Get quantity from equipment template point relationship
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=equip.equipment_template_id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * (equip.quantity or 1)
             
-            # Count points by type
-            di_count = 1 if point_type == 'DI' else 0
-            do_count = 1 if point_type == 'DO' else 0
-            ai_count = 1 if point_type == 'AI' else 0
-            ao_count = 1 if point_type == 'AO' else 0
+            # Get individual point data from sub_points
+            for sub_point in pt.sub_points:
+                point_type = sub_point.point_type.upper()
+                
+                # Determine communication type - only show protocol if it's a software point
+                communication = ""
+                is_software_point = False
+                if hasattr(pt, 'part_number') and pt.part_number:
+                    # Check if it's a software/network point based on part number patterns
+                    part_num = pt.part_number.upper()
+                    if any(software_indicator in part_num for software_indicator in ['MP300', 'TC303', 'VP228', 'BMS', 'SOFTWARE', 'NETWORK']):
+                        is_software_point = True
+                        if point_type in ['AI', 'AO']:
+                            communication = "BACnet"
+                        else:
+                            communication = "Modbus"
+                
+                # Create individual point entry
+                point_counts = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0}
+                if point_type == 'DI':
+                    point_counts['di'] = point_qty
+                elif point_type == 'DO':
+                    point_counts['do'] = point_qty
+                elif point_type == 'AI':
+                    point_counts['ai'] = point_qty
+                elif point_type == 'AO':
+                    point_counts['ao'] = point_qty
+                
+                panels_data[panel_name]['equipment_points'].append({
+                    'equipment_name': equip.instance_name,
+                    'point_name': pt.name,
+                    'point_type': point_type,
+                    'part_number': getattr(pt, 'part_number', '') or '',
+                    'di': point_counts['di'],
+                    'do': point_counts['do'],
+                    'ai': point_counts['ai'],
+                    'ao': point_counts['ao'],
+                    'communication': communication
+                })
+                
+                # Add to panel totals
+                panels_data[panel_name]['panel_totals']['di'] += point_counts['di']
+                panels_data[panel_name]['panel_totals']['do'] += point_counts['do']
+                panels_data[panel_name]['panel_totals']['ai'] += point_counts['ai']
+                panels_data[panel_name]['panel_totals']['ao'] += point_counts['ao']
+                if communication:
+                    panels_data[panel_name]['panel_totals']['communication'] += 1
+
+    # Generate LaTeX table content with panel grouping
+    grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
+    
+    for panel_name, panel_data in panels_data.items():
+        # Add panel header row (spanning all columns)
+        latex_content += f"\\multicolumn{{8}}{{|l|}}{{\\textbf{{{panel_name} ({panel_data['floor']})}}}} \\\\\n\\hline\n"
+        
+        # Add equipment points for this panel
+        for point in panel_data['equipment_points']:
+            # Escape special LaTeX characters in strings
+            equipment_name = point['equipment_name'].replace('&', '\\&').replace('_', '\\_')
+            point_name = point['point_name'].replace('&', '\\&').replace('_', '\\_')
+            part_number = point['part_number'].replace('&', '\\&').replace('_', '\\_')
+            communication = point['communication'].replace('&', '\\&').replace('_', '\\_')
             
-            latex_content += f"{panel_name} & {equip.instance_name} & {point.name} & {point_type} & {di_count} & {do_count} & {ai_count} & {ao_count} \\\\\n\\hline\n"
+            latex_content += f"{equipment_name} & {point_name} & {part_number} & {point['di']} & {point['do']} & {point['ai']} & {point['ao']} & {communication} \\\\\n\\hline\n"
+        
+        # Add panel totals
+        panel_totals = panel_data['panel_totals']
+        latex_content += f"\\textbf{{Total for {panel_name}}} & & & {panel_totals['di']} & {panel_totals['do']} & {panel_totals['ai']} & {panel_totals['ao']} & {panel_totals['communication'] if panel_totals['communication'] > 0 else ''} \\\\\n\\hline\n"
+        
+        # Add to grand totals
+        grand_totals['di'] += panel_totals['di']
+        grand_totals['do'] += panel_totals['do']
+        grand_totals['ai'] += panel_totals['ai']
+        grand_totals['ao'] += panel_totals['ao']
+        grand_totals['communication'] += panel_totals['communication']
+        
+        # Add empty row for spacing
+        latex_content += " & & & & & & & \\\\\n\\hline\n"
+    
+    # Add grand total row
+    latex_content += f"\\textbf{{Grand Total}} & & & {grand_totals['di']} & {grand_totals['do']} & {grand_totals['ai']} & {grand_totals['ao']} & {grand_totals['communication'] if grand_totals['communication'] > 0 else ''} \\\\\n\\hline\n"
 
     latex_content += r"""
 \end{longtable}
