@@ -569,39 +569,162 @@
             transform: translateY(-1px);
         }
 
-        .suggestions-section {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 8px;
-            padding: 1.5rem;
+        /* Template Preview Styles */
+        .template-preview-section {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
             margin-bottom: 2rem;
+            overflow: hidden;
         }
 
-        .suggestions-title {
-            color: #0369a1;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        .preview-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 1.5rem;
+            text-align: center;
         }
 
-        .suggestions-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        .suggestions-list li {
-            color: #0c4a6e;
+        .preview-icon {
+            font-size: 2rem;
             margin-bottom: 0.5rem;
-            padding-left: 1.5rem;
-            position: relative;
         }
 
-        .suggestions-list li:before {
-            content: "💡";
-            position: absolute;
-            left: 0;
+        .preview-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .preview-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .document-preview {
+            padding: 2rem;
+            background: #fafbfc;
+            border: 1px solid #e1e5e9;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .document-section {
+            background: var(--white);
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header-section {
+            padding: 1.5rem;
+            border-left: 4px solid var(--primary-color);
+            text-align: center;
+        }
+
+        .header-content {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .header-image-placeholder, .footer-image-placeholder {
+            padding: 1rem;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 1rem;
+        }
+
+        .content-section {
+            padding: 1.5rem;
+        }
+
+        .preview-document-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.85rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .preview-document-table th {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8rem;
+            background-color: #343a40;
+            color: #ffffff;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .preview-document-table td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .preview-document-table .table-row.primary {
+            background-color: #f8f9fa;
+        }
+
+        .preview-document-table .table-row.secondary {
+            background-color: #ffffff;
+        }
+
+        .preview-document-table .table-totals {
+            background-color: #e9ecef;
+            font-weight: 600;
+        }
+
+        .footer-section {
+            padding: 1.5rem;
+            border-left: 4px solid var(--success-color);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .footer-content {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .company-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            text-align: right;
+        }
+
+        /* Responsive design for document preview */
+        @media (max-width: 768px) {
+            .document-preview {
+                padding: 1rem;
+            }
+            
+            .preview-document-table {
+                font-size: 0.75rem;
+            }
+            
+            .preview-document-table th,
+            .preview-document-table td {
+                padding: 0.5rem 0.25rem;
+            }
+            
+            .footer-section {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .company-info {
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -741,20 +864,118 @@
 
         <!-- Document Customization Tab -->
         <div id="documents-tab" class="tab-content">
-            <div class="suggestions-section">
-                <div class="suggestions-title">
-                    💡 Enhancement Suggestions
+            <!-- Template Preview Section -->
+            <div class="template-preview-section">
+                <div class="preview-header">
+                    <div class="preview-icon">📄</div>
+                    <div class="preview-title">Document Template Preview</div>
+                    <div class="preview-subtitle">Live preview of your customized document template</div>
                 </div>
-                <ul class="suggestions-list">
-                    <li><strong>Branding Templates:</strong> Create multiple branded templates for different clients or departments</li>
-                    <li><strong>Logo Management:</strong> Upload and manage company logos with automatic resizing</li>
-                    <li><strong>Color Themes:</strong> Create pre-defined color themes (Corporate Blue, Tech Green, Professional Gray)</li>
-                    <li><strong>Template Preview:</strong> Live preview of documents with current settings</li>
-                    <li><strong>Export Settings:</strong> Export/import customization settings between systems</li>
-                    <li><strong>Dynamic Headers:</strong> Include project-specific information automatically in headers</li>
-                    <li><strong>Footer Templates:</strong> Pre-defined footer templates with legal disclaimers</li>
-                    <li><strong>QR Code Integration:</strong> Add QR codes linking to digital project documents</li>
-                </ul>
+                
+                <div class="document-preview">
+                    <!-- Document Header Preview -->
+                    <div class="document-section header-section" id="preview-document-header">
+                        <div class="header-content" id="preview-header-content">
+                            Building Management System<br>
+                            Project Documentation<br>
+                            Generated by BMS Selection Tool
+                        </div>
+                        <div class="header-image-placeholder" id="preview-header-image" style="display: none;">
+                            [Header Image Preview]
+                        </div>
+                    </div>
+                    
+                    <!-- Document Content Preview -->
+                    <div class="document-section content-section">
+                        <h3 style="color: var(--text-primary); margin-bottom: 1rem;">Equipment Point List</h3>
+                        
+                        <!-- Equipment Table Preview -->
+                        <table class="preview-document-table" id="preview-document-table">
+                            <thead>
+                                <tr class="table-header" id="preview-table-header">
+                                    <th>Equipment</th>
+                                    <th>Point Name</th>
+                                    <th>Part Number</th>
+                                    <th>DI</th>
+                                    <th>DO</th>
+                                    <th>AI</th>
+                                    <th>AO</th>
+                                    <th>Software</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-row primary" id="preview-table-row-1">
+                                    <td>AHU-01</td>
+                                    <td>Supply Air Temperature</td>
+                                    <td>T-S-10k</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                                <tr class="table-row secondary" id="preview-table-row-2">
+                                    <td>AHU-01</td>
+                                    <td>Return Air Temperature</td>
+                                    <td>T-R-10k</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                                <tr class="table-row primary" id="preview-table-row-3">
+                                    <td>AHU-01</td>
+                                    <td>Supply Fan Status</td>
+                                    <td>SF-Status</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>Hardwired</td>
+                                </tr>
+                                <tr class="table-row secondary" id="preview-table-row-4">
+                                    <td>AHU-02</td>
+                                    <td>Damper Control</td>
+                                    <td>D-Control</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-totals" id="preview-table-totals">
+                                    <td colspan="3"><strong>TOTALS</strong></td>
+                                    <td><strong>1</strong></td>
+                                    <td><strong>1</strong></td>
+                                    <td><strong>2</strong></td>
+                                    <td><strong>0</strong></td>
+                                    <td><strong>4 Points</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <!-- Document Footer Preview -->
+                    <div class="document-section footer-section" id="preview-document-footer">
+                        <div class="footer-content" id="preview-footer-content">
+                            Confidential - Property of [Company Name]<br>
+                            Generated on: January 15, 2025<br>
+                            Page 1 of 3
+                        </div>
+                        <div class="footer-image-placeholder" id="preview-footer-image" style="display: none;">
+                            [Footer Image Preview]
+                        </div>
+                        <div class="company-info" id="preview-company-info">
+                            [Company Name]<br>
+                            [Address]<br>
+                            [Phone] | [Email]<br>
+                            [Website]
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="form-group">
@@ -1035,7 +1256,7 @@
             showCurrentImage('footer', currentCustomization.footer_image_path);
             showCurrentImage('company-logo', currentCustomization.company_logo_path);
             
-            updateColorPreview();
+            updateTemplatePreview();
         }
 
         function setColorInput(baseId, colorValue) {
@@ -1065,19 +1286,19 @@
                 
                 colorInput.addEventListener('input', (e) => {
                     textInput.value = e.target.value;
-                    updateColorPreview();
+                    updateTemplatePreview();
                 });
                 
                 textInput.addEventListener('input', (e) => {
                     if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
                         colorInput.value = e.target.value;
-                        updateColorPreview();
+                        updateTemplatePreview();
                     }
                 });
             });
         }
 
-        function updateColorPreview() {
+        function updateTemplatePreview() {
             const primaryColor = document.getElementById('table-primary-color').value;
             const secondaryColor = document.getElementById('table-secondary-color').value;
             const headerColor = document.getElementById('table-header-color').value;
@@ -1089,11 +1310,72 @@
             document.getElementById('header-color-preview').style.backgroundColor = headerColor;
             document.getElementById('header-text-color-preview').style.backgroundColor = headerTextColor;
             
-            // Update preview table
+            // Update small preview table (keep existing functionality)
             document.getElementById('preview-header').style.backgroundColor = headerColor;
             document.getElementById('preview-header').style.color = headerTextColor;
             document.getElementById('preview-row-1').style.backgroundColor = secondaryColor;
             document.getElementById('preview-row-2').style.backgroundColor = primaryColor;
+            
+            // Update template preview document table
+            const documentTableHeader = document.getElementById('preview-table-header');
+            const documentTableRows = document.querySelectorAll('.preview-document-table .table-row');
+            
+            if (documentTableHeader) {
+                documentTableHeader.style.backgroundColor = headerColor;
+                documentTableHeader.style.color = headerTextColor;
+            }
+            
+            documentTableRows.forEach((row, index) => {
+                if (row.classList.contains('primary')) {
+                    row.style.backgroundColor = primaryColor;
+                } else if (row.classList.contains('secondary')) {
+                    row.style.backgroundColor = secondaryColor;
+                }
+            });
+            
+            // Update text content in template preview
+            updateTextPreview();
+        }
+
+        function updateTextPreview() {
+            const headerText = document.getElementById('document-header').value;
+            const footerText = document.getElementById('document-footer').value;
+            const companyInfo = document.getElementById('company-info').value;
+            
+            // Update header preview
+            const headerPreview = document.getElementById('preview-header-content');
+            if (headerPreview && headerText.trim()) {
+                headerPreview.innerHTML = headerText.replace(/\n/g, '<br>');
+            }
+            
+            // Update footer preview (convert LaTeX commands to readable text)
+            const footerPreview = document.getElementById('preview-footer-content');
+            if (footerPreview && footerText.trim()) {
+                let processedFooter = footerText
+                    .replace(/\\today/g, 'January 15, 2025')
+                    .replace(/\\thepage/g, '1')
+                    .replace(/\\pageref\{LastPage\}/g, '3')
+                    .replace(/\n/g, '<br>');
+                footerPreview.innerHTML = processedFooter;
+            }
+            
+            // Update company info preview
+            const companyPreview = document.getElementById('preview-company-info');
+            if (companyPreview && companyInfo.trim()) {
+                companyPreview.innerHTML = companyInfo.replace(/\n/g, '<br>');
+            }
+        }
+
+        // Add event listeners for text fields to update preview in real-time
+        function setupTextPreviewUpdates() {
+            const textFields = ['document-header', 'document-footer', 'company-info'];
+            
+            textFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', updateTextPreview);
+                }
+            });
         }
 
         // File upload handling
@@ -1190,7 +1472,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupColorInputs();
             setupFileUploads();
-            updateColorPreview();
+            setupTextPreviewUpdates();
+            updateTemplatePreview();
         });
     </script>
 </body>
