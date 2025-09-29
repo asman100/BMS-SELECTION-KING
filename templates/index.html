@@ -2108,7 +2108,9 @@
         });
         formTitle.textContent = `Editing: ${item.instanceName}`;
         mainHeader.textContent = `Editing Equipment`;
-        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button>`;
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button><button type="button" id="save-preset-btn" class="btn btn-success" style="margin-left: 10px;">Save as Preset</button>`;
+        // Re-bind event listener for the dynamically created Save Preset button
+        document.getElementById('save-preset-btn').addEventListener('click', showSavePresetModal);
         panelNameInput.readOnly = false;
         floorNameInput.readOnly = false
     }
@@ -2288,7 +2290,6 @@
                 appData.scheduledEquipment = updated.scheduledEquipment;
                 renderSidebar();
                 resetForm();
-                showNotification('Panel renamed successfully', 'success');
             } else {
                 const data = await response.json().catch(() => ({ error: 'Rename failed' }));
                 alert(data.error || 'Rename failed');

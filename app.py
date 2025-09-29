@@ -306,7 +306,7 @@ class ControllerSelection(db.Model):
             "id": self.id,
             "project_id": self.project_id,
             "panel_id": self.panel_id,
-            "panel_name": self.panel.panel_name,
+            "panel_name": self.panel.panel_name if self.panel else f"Panel ID {self.panel_id}",
             "quantity": self.quantity,
             "is_server_selection": self.is_server_selection,
             "is_auto_optimized": self.is_auto_optimized,
