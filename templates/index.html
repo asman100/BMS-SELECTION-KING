@@ -787,19 +787,23 @@
             display: flex;
             gap: 2rem;
             max-height: 60vh;
-            overflow-y: auto;
         }
 
         .modal-list-pane {
             flex: 1;
             min-width: 300px;
             flex-shrink: 0;
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
         .modal-form-pane {
             flex: 1;
             min-width: 350px;
             flex-shrink: 1;
+            position: sticky;
+            top: 0;
+            height: fit-content;
         }
 
         #template-list li,
@@ -911,15 +915,42 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
+            max-height: calc(60vh - 150px);
+            overflow-y: auto;
+            display: block;
         }
+        
+        #parts-table thead,
+        #parts-table tbody {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        
+        #parts-table tbody {
+            display: block;
+            max-height: calc(60vh - 150px);
+            overflow-y: auto;
+        }
+        
+        #parts-table tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        
         #parts-table th, #parts-table td {
             border: 1px solid var(--border-color);
             padding: 8px;
             text-align: left;
+            width: 25%;
         }
         #parts-table th {
             background-color: var(--sidebar-item-bg);
             color: var(--sidebar-text);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
         #parts-table tbody tr:nth-child(even) { background-color: #e9ecef; }
         #parts-table tbody tr:hover { background-color: #d9e2ef; cursor: pointer; }
