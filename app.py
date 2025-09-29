@@ -2473,6 +2473,24 @@ def generate_controller_boq_reportlab(project_id, styles):
                     module_boq[module_part_num]['quantity'] += module_qty
                     module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
                     total_controller_cost += module_qty * module.cost
+                    
+                    # Add module accessories (I/O module bases, power supply bases)
+                    module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    for accessory in module_accessories:
+                        acc_part_num = accessory.part_number
+                        if acc_part_num not in accessory_boq:
+                            accessory_boq[acc_part_num] = {
+                                'name': accessory.name,
+                                'part_number': acc_part_num,
+                                'quantity': 0,
+                                'unit_cost': accessory.cost,
+                                'total_cost': 0,
+                                'category': 'Module Accessory'
+                            }
+                        
+                        accessory_boq[acc_part_num]['quantity'] += module_qty
+                        accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                        total_controller_cost += module_qty * accessory.cost
     
     # Create table data
     data = [['Part Number', 'Description', 'Category', 'Quantity', 'Unit Cost', 'Total Cost']]
@@ -3220,6 +3238,24 @@ def generate_controller_boq_latex(project_id):
                     module_boq[module_part_num]['quantity'] += module_qty
                     module_boq[module_part_num]['total_cost'] = module_boq[module_part_num]['quantity'] * module.cost
                     total_controller_cost += module_qty * module.cost
+                    
+                    # Add module accessories (I/O module bases, power supply bases)
+                    module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    for accessory in module_accessories:
+                        acc_part_num = accessory.part_number
+                        if acc_part_num not in accessory_boq:
+                            accessory_boq[acc_part_num] = {
+                                'name': accessory.name,
+                                'part_number': acc_part_num,
+                                'quantity': 0,
+                                'unit_cost': accessory.cost,
+                                'total_cost': 0,
+                                'category': 'Module Accessory'
+                            }
+                        
+                        accessory_boq[acc_part_num]['quantity'] += module_qty
+                        accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
+                        total_controller_cost += module_qty * accessory.cost
     
     latex_content = r"""
 \section{Controller Bill of Quantities}
