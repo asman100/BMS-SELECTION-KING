@@ -396,6 +396,19 @@ def admin_dashboard():
     total_users = User.query.count()
     total_projects = Project.query.count()
     
+    # Get all projects for admin view with owner information
+    all_projects = db.session.query(Project, User).join(User, Project.user_id == User.id).order_by(Project.name).all()
+    projects_data = []
+    for project, owner in all_projects:
+        panels_count = Panel.query.filter_by(project_id=project.id).count()
+        equipment_count = ScheduledEquipment.query.filter_by(project_id=project.id).count()
+        projects_data.append({
+            'project': project,
+            'owner': owner,
+            'panels_count': panels_count,
+            'equipment_count': equipment_count
+        })
+    
     stats = {
         'total_users': total_users,
         'pending_users': pending_users,
@@ -403,7 +416,7 @@ def admin_dashboard():
         'total_projects': total_projects
     }
     
-    return render_template('admin.html', users=users, stats=stats)
+    return render_template('admin.html', users=users, stats=stats, projects_data=projects_data)
 
 @app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
 @login_required

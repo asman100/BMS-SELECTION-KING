@@ -246,6 +246,19 @@
             padding: 2rem;
         }
 
+        #dual-preview-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            #dual-preview-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+
         .preview-iframe {
             width: 100%;
             height: 600px;
@@ -313,43 +326,23 @@
             </div>
             <div class="selection-content">
                 <div class="report-grid">
-                    <div class="report-card" onclick="toggleReport('equipment-list')">
+                    <div class="report-card" onclick="toggleReport('technical-report')">
                         <div class="report-checkbox">
-                            <input type="checkbox" id="equipment-list" name="reports" value="equipment-list">
-                            <label for="equipment-list" class="report-title">Equipment List</label>
+                            <input type="checkbox" id="technical-report" name="reports" value="technical-report">
+                            <label for="technical-report" class="report-title">Technical Report</label>
                         </div>
                         <div class="report-description">
-                            Complete list of all scheduled equipment with their instances, quantities, and assigned panels.
+                            Complete technical documentation including Equipment List and Point List without costs. Enhanced with professional section dividers for clear technical documentation.
                         </div>
                     </div>
 
-                    <div class="report-card" onclick="toggleReport('point-list')">
+                    <div class="report-card" onclick="toggleReport('financial-report')">
                         <div class="report-checkbox">
-                            <input type="checkbox" id="point-list" name="reports" value="point-list">
-                            <label for="point-list" class="report-title">Point List</label>
+                            <input type="checkbox" id="financial-report" name="reports" value="financial-report">
+                            <label for="financial-report" class="report-title">Financial Report</label>
                         </div>
                         <div class="report-description">
-                            Detailed breakdown of I/O points by equipment, showing signal types and part numbers.
-                        </div>
-                    </div>
-
-                    <div class="report-card" onclick="toggleReport('field-devices-boq')">
-                        <div class="report-checkbox">
-                            <input type="checkbox" id="field-devices-boq" name="reports" value="field-devices-boq">
-                            <label for="field-devices-boq" class="report-title">Field Devices BOQ</label>
-                        </div>
-                        <div class="report-description">
-                            Bill of quantities for field devices including sensors, actuators, and other components.
-                        </div>
-                    </div>
-
-                    <div class="report-card" onclick="toggleReport('controller-boq')">
-                        <div class="report-checkbox">
-                            <input type="checkbox" id="controller-boq" name="reports" value="controller-boq">
-                            <label for="controller-boq" class="report-title">Controller BOQ</label>
-                        </div>
-                        <div class="report-description">
-                            Bill of quantities for controllers, servers, modules, and accessories with pricing.
+                            Financial summary containing combined Parts BOQ and Controller BOQ with totals. Streamlined cost breakdown for procurement and budgeting.
                         </div>
                     </div>
                 </div>
@@ -384,12 +377,35 @@
         <div id="preview-section" class="preview-section">
             <div class="card-header">
                 <div class="card-icon">👁️</div>
-                <div class="card-title">Document Preview</div>
+                <div class="card-title">Document Previews</div>
             </div>
             <div class="preview-content">
                 <div id="loading-preview" class="loading" style="display: none;">
-                    <p>Generating preview...</p>
+                    <p>Generating previews...</p>
                 </div>
+                
+                <!-- Dual Preview Grid -->
+                <div id="dual-preview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <!-- Technical Report Preview -->
+                    <div id="technical-preview-container" style="display: none;">
+                        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                            <h3 style="color: #0369a1; margin: 0 0 0.5rem 0; font-size: 1.1rem;">📋 Technical Report Preview</h3>
+                            <p style="color: #0c4a6e; margin: 0; font-size: 0.9rem;">Engineering documentation without costs</p>
+                        </div>
+                        <iframe id="technical-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
+                    </div>
+                    
+                    <!-- Financial Report Preview -->
+                    <div id="financial-preview-container" style="display: none;">
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                            <h3 style="color: #15803d; margin: 0 0 0.5rem 0; font-size: 1.1rem;">💰 Financial Report Preview</h3>
+                            <p style="color: #166534; margin: 0; font-size: 0.9rem;">Cost breakdown and procurement summary</p>
+                        </div>
+                        <iframe id="financial-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
+                    </div>
+                </div>
+                
+                <!-- Single Preview (for backward compatibility) -->
                 <iframe id="preview-iframe" class="preview-iframe" style="display: none;"></iframe>
             </div>
         </div>
@@ -453,100 +469,155 @@
 
             const previewSection = document.getElementById('preview-section');
             const loadingPreview = document.getElementById('loading-preview');
-            const previewIframe = document.getElementById('preview-iframe');
+            const dualPreviewGrid = document.getElementById('dual-preview-grid');
+            const singlePreviewIframe = document.getElementById('preview-iframe');
+            
+            const technicalContainer = document.getElementById('technical-preview-container');
+            const financialContainer = document.getElementById('financial-preview-container');
+            const technicalIframe = document.getElementById('technical-preview-iframe');
+            const financialIframe = document.getElementById('financial-preview-iframe');
 
             previewSection.style.display = 'block';
             loadingPreview.style.display = 'block';
-            previewIframe.style.display = 'none';
+            dualPreviewGrid.style.display = 'none';
+            singlePreviewIframe.style.display = 'none';
 
+            const selectedArray = Array.from(selectedReports);
+            const hasTechnical = selectedArray.includes('technical-report');
+            const hasFinancial = selectedArray.includes('financial-report');
+            
             try {
-                const response = await fetch(`/api/projects/${projectId}/reports/generate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        reports: Array.from(selectedReports),
-                        header: documentCustomization ? documentCustomization.document_header : 'Building Management System\nProject Documentation\nGenerated by BMS Selection Tool',
-                        footer: documentCustomization ? documentCustomization.document_footer : 'Confidential - Property of [Company Name]\nGenerated on: \\today\nPage \\thepage\\ of \\pageref{LastPage}',
-                        company_info: documentCustomization ? documentCustomization.company_info : '[Company Name]\n[Address]\n[Phone] | [Email]\n[Website]',
-                        // Include image paths if available
-                        header_image: documentCustomization ? documentCustomization.header_image_path : null,
-                        footer_image: documentCustomization ? documentCustomization.footer_image_path : null,
-                        company_logo: documentCustomization ? documentCustomization.company_logo_path : null,
-                        // Include color customization
-                        table_colors: documentCustomization ? {
-                            primary: documentCustomization.table_primary_color,
-                            secondary: documentCustomization.table_secondary_color,
-                            header_bg: documentCustomization.table_header_color,
-                            header_text: documentCustomization.table_header_text_color
-                        } : null
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    if (data.details && Array.isArray(data.details)) {
-                        // Show validation errors with suggestions
-                        let errorMessage = data.error + ':\n\n';
-                        data.details.forEach(detail => {
-                            errorMessage += '• ' + detail + '\n';
-                        });
-                        errorMessage += '\nPlease complete the required steps in Controller Selection before generating these reports.';
-                        showNotification(errorMessage, 'error');
-                        
-                        // Hide preview section on validation error
-                        previewSection.style.display = 'none';
-                        return;
-                    } else {
-                        throw new Error(data.error || 'Failed to generate reports');
+                // Generate previews based on selection
+                const promises = [];
+                
+                if (hasTechnical) {
+                    promises.push(generateSinglePreview('technical-report').then(data => ({ type: 'technical', data })));
+                }
+                
+                if (hasFinancial) {
+                    promises.push(generateSinglePreview('financial-report').then(data => ({ type: 'financial', data })));
+                }
+                
+                const results = await Promise.all(promises);
+                
+                // Setup display based on what was generated
+                if (hasTechnical && hasFinancial) {
+                    // Show dual preview
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'block';
+                    financialContainer.style.display = 'block';
+                    
+                    results.forEach(result => {
+                        if (result.type === 'technical') {
+                            setupPreviewIframe(technicalIframe, result.data);
+                        } else if (result.type === 'financial') {
+                            setupPreviewIframe(financialIframe, result.data);
+                        }
+                    });
+                } else if (hasTechnical) {
+                    // Show only technical
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'block';
+                    financialContainer.style.display = 'none';
+                    
+                    const techResult = results.find(r => r.type === 'technical');
+                    if (techResult) {
+                        setupPreviewIframe(technicalIframe, techResult.data);
+                    }
+                } else if (hasFinancial) {
+                    // Show only financial
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'none';
+                    financialContainer.style.display = 'block';
+                    
+                    const finResult = results.find(r => r.type === 'financial');
+                    if (finResult) {
+                        setupPreviewIframe(financialIframe, finResult.data);
                     }
                 }
 
-                generatedContent = data;
+                // Store the combined content for download
+                generatedContent = results.length > 0 ? results[0].data : null;
                 
-                // Show PDF preview if available, otherwise show LaTeX preview
-                if (data.pdf_preview_url) {
-                    previewIframe.src = data.pdf_preview_url;
-                    showNotification('PDF preview generated successfully!', 'success');
-                } else {
-                    // Fallback to LaTeX preview if PDF generation failed
-                    previewIframe.srcdoc = `
-                        <html>
-                            <head>
-                                <style>
-                                    body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
-                                    .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
-                                    .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
-                                    .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="note">
-                                    LaTeX source generated successfully. PDF preview requires LaTeX installation.
-                                    You can still download the LaTeX source and compile it locally.
-                                </div>
-                                <div class="section">
-                                    <div class="title">LaTeX Source Preview</div>
-                                    ${data.latex_content.substring(0, 3000)}...
-                                </div>
-                            </body>
-                        </html>
-                    `;
-                    showNotification('LaTeX source generated successfully', 'success');
-                }
-
                 loadingPreview.style.display = 'none';
-                previewIframe.style.display = 'block';
-                
                 updateButtonStates();
+                showNotification('Preview generated successfully!', 'success');
 
             } catch (error) {
                 console.error('Error generating preview:', error);
                 showNotification('Error generating preview: ' + error.message, 'error');
                 loadingPreview.style.display = 'none';
                 previewSection.style.display = 'none';
+            }
+        }
+
+        async function generateSinglePreview(reportType) {
+            const response = await fetch(`/api/projects/${projectId}/reports/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reports: [reportType],
+                    header: documentCustomization ? documentCustomization.document_header : 'Building Management System\nProject Documentation\nGenerated by BMS Selection Tool',
+                    footer: documentCustomization ? documentCustomization.document_footer : 'Confidential - Property of [Company Name]\nGenerated on: \\today\nPage \\thepage\\ of \\pageref{LastPage}',
+                    company_info: documentCustomization ? documentCustomization.company_info : '[Company Name]\n[Address]\n[Phone] | [Email]\n[Website]',
+                    header_image: documentCustomization ? documentCustomization.header_image_path : null,
+                    footer_image: documentCustomization ? documentCustomization.footer_image_path : null,
+                    company_logo: documentCustomization ? documentCustomization.company_logo_path : null,
+                    table_colors: documentCustomization ? {
+                        primary: documentCustomization.table_primary_color,
+                        secondary: documentCustomization.table_secondary_color,
+                        header_bg: documentCustomization.table_header_color,
+                        header_text: documentCustomization.table_header_text_color
+                    } : null
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (data.details && Array.isArray(data.details)) {
+                    let errorMessage = data.error + ':\n\n';
+                    data.details.forEach(detail => {
+                        errorMessage += '• ' + detail + '\n';
+                    });
+                    errorMessage += '\nPlease complete the required steps in Controller Selection before generating these reports.';
+                    throw new Error(errorMessage);
+                } else {
+                    throw new Error(data.error || 'Failed to generate reports');
+                }
+            }
+
+            return data;
+        }
+
+        function setupPreviewIframe(iframe, data) {
+            if (data.pdf_preview_url) {
+                iframe.src = data.pdf_preview_url;
+            } else {
+                // Fallback to LaTeX preview
+                iframe.srcdoc = `
+                    <html>
+                        <head>
+                            <style>
+                                body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
+                                .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
+                                .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
+                                .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="note">
+                                LaTeX source generated successfully. PDF preview requires LaTeX installation.
+                            </div>
+                            <div class="section">
+                                <div class="title">LaTeX Source Preview</div>
+                                ${data.latex_content.substring(0, 3000)}...
+                            </div>
+                        </body>
+                    </html>
+                `;
             }
         }
 

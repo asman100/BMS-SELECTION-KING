@@ -778,6 +778,7 @@
         <!-- Admin Tabs -->
         <div class="admin-tabs">
             <button class="admin-tab active" onclick="switchTab('users')">👤 User Management</button>
+            <button class="admin-tab" onclick="switchTab('projects')">📋 Projects Management</button>
             <button class="admin-tab" onclick="switchTab('documents')">📝 Document Customization</button>
         </div>
 
@@ -860,6 +861,88 @@
                 </div>
             {% endif %}
         </div>
+        </div>
+
+        <!-- Projects Management Tab -->
+        <div id="projects-tab" class="tab-content">
+            <div class="section-header">
+                <div class="section-title">
+                    📋 Projects Management
+                </div>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                    View and manage all projects from all users in the system
+                </p>
+            </div>
+
+            {% if projects_data %}
+                <div style="overflow-x: auto;">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Owner</th>
+                                <th>Panels</th>
+                                <th>Equipment</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project_data in projects_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ project_data.project.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="role-badge role-user">{{ project_data.owner.username }}</span>
+                                    {% if project_data.owner.is_admin %}
+                                        <span class="role-badge role-admin" style="margin-left: 0.5rem;">Admin</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center;">
+                                    <span style="background: #e6fffa; color: #0c4a6e; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">
+                                        {{ project_data.panels_count }} panels
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span style="background: #f0f9ff; color: #0c4a6e; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">
+                                        {{ project_data.equipment_count }} equipment
+                                    </span>
+                                </td>
+                                <td style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    <!-- Project creation date would go here if available -->
+                                    --
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a href="/?project_id={{ project_data.project.id }}" 
+                                           class="btn btn-secondary" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            👁️ View
+                                        </a>
+                                        <a href="/controller_selection/{{ project_data.project.id }}" 
+                                           class="btn btn-warning" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            ⚙️ Controllers
+                                        </a>
+                                        <a href="/reports_output/{{ project_data.project.id }}" 
+                                           class="btn btn-success" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            📄 Reports
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h3>No Projects Found</h3>
+                    <p>No projects have been created yet.</p>
+                </div>
+            {% endif %}
         </div>
 
         <!-- Document Customization Tab -->
