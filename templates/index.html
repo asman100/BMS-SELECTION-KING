@@ -1145,18 +1145,48 @@
     </div>
 
     <div id="delete-panel-modal" class="modal-overlay" style="display:none;">
-      <div class="modal">
-        <h3>Delete Panel</h3>
-        <p id="delete-panel-warning" style="color:#600; font-size:0.9rem;"></p>
-        <p>Type the panel name to confirm:</p>
-        <input type="text" id="delete-panel-confirm" />
-        <p style="margin-top:10px;">Additionally type DELETE below:</p>
-        <input type="text" id="delete-panel-confirm-word" placeholder="DELETE" />
-        <div class="modal-footer">
-          <button type="button" id="cancel-delete-panel">Cancel</button>
-          <button type="button" id="confirm-delete-panel" class="btn btn-danger">Delete Permanently</button>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>⚠️ Delete Panel</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('cancel-delete-panel').click()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="delete-panel-warning" style="color: var(--danger-color); font-size: 0.9rem; margin-bottom: 1rem;"></p>
+                <div class="form-group">
+                    <label for="delete-panel-confirm">Type the panel name to confirm:</label>
+                    <input type="text" id="delete-panel-confirm" placeholder="Panel name" />
+                </div>
+                <div class="form-group">
+                    <label for="delete-panel-confirm-word">Type DELETE to confirm:</label>
+                    <input type="text" id="delete-panel-confirm-word" placeholder="DELETE" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancel-delete-panel">Cancel</button>
+                <button type="button" id="confirm-delete-panel" class="btn btn-danger">Delete Permanently</button>
+            </div>
         </div>
-      </div>
+    </div>
+
+    <!-- Rename Panel Modal -->
+    <div id="rename-panel-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>✏️ Rename Panel</h2>
+                <button class="modal-close-btn" onclick="hideRenamePanelModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="rename-panel-info" style="color: var(--text-secondary); margin-bottom: 1rem;"></p>
+                <div class="form-group">
+                    <label for="rename-panel-input">New Panel Name:</label>
+                    <input type="text" id="rename-panel-input" placeholder="Enter new panel name" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="hideRenamePanelModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmPanelRename()">Rename Panel</button>
+            </div>
+        </div>
     </div>
 
     <!-- Save Preset Modal -->
@@ -2203,6 +2233,70 @@
     let panelDeleteConfirmInput = document.getElementById('delete-panel-confirm');
     let panelDeleteConfirmWordInput = document.getElementById('delete-panel-confirm-word');
     let deletePanelId = null; let deletePanelName = null;
+    let renamePanelId = null; let renamePanelName = null;
+
+    function showRenamePanel(panel) {
+        renamePanelId = panel.id; 
+        renamePanelName = panel.panelName;
+        document.getElementById('rename-panel-info').textContent = `Renaming panel: "${panel.panelName}"`;
+        document.getElementById('rename-panel-input').value = panel.panelName;
+        document.getElementById('rename-panel-modal').style.display = 'flex';
+        // Focus and select the text for easy editing
+        setTimeout(() => {
+            const input = document.getElementById('rename-panel-input');
+            input.focus();
+            input.select();
+        }, 100);
+    }
+
+    function hideRenamePanelModal() {
+        document.getElementById('rename-panel-modal').style.display = 'none';
+    }
+
+    async function confirmPanelRename() {
+        const newName = document.getElementById('rename-panel-input').value.trim();
+        
+        if (!newName) {
+            alert('Please enter a panel name.');
+            return;
+        }
+        
+        if (newName === renamePanelName) {
+            hideRenamePanelModal();
+            return;
+        }
+
+        // Check if panel name already exists in this project
+        const existingPanel = appData.panels.find(p => p.panelName === newName && p.id !== renamePanelId);
+        if (existingPanel) {
+            alert('A panel with this name already exists in this project.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/panel/${projectId}/${renamePanelId}/rename`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+
+            if (response.ok) {
+                hideRenamePanelModal();
+                // Refresh data and UI
+                const updated = await apiCall(`/api/data/${projectId}`);
+                appData.panels = updated.panels;
+                appData.scheduledEquipment = updated.scheduledEquipment;
+                renderSidebar();
+                resetForm();
+                showNotification('Panel renamed successfully', 'success');
+            } else {
+                const data = await response.json().catch(() => ({ error: 'Rename failed' }));
+                alert(data.error || 'Rename failed');
+            }
+        } catch (error) {
+            alert('Network error. Please try again.');
+        }
+    }
 
     function showDeletePanel(panel){
       deletePanelId = panel.id; deletePanelName = panel.panelName;
@@ -2214,6 +2308,20 @@
 
     document.getElementById('cancel-delete-panel').onclick = ()=>{ panelDeleteModal.style.display='none'; };
 
+    // Add event listener for rename panel modal
+    document.getElementById('rename-panel-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            confirmPanelRename();
+        }
+    });
+
+    // Close rename panel modal when clicking outside
+    document.getElementById('rename-panel-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            hideRenamePanelModal();
+        }
+    });
+
     document.getElementById('confirm-delete-panel').onclick = async ()=>{
       if(panelDeleteConfirmInput.value !== deletePanelName){ alert('Panel name mismatch'); return; }
       if(panelDeleteConfirmWordInput.value !== 'DELETE'){ alert('Please type DELETE to confirm.'); return; }
@@ -2222,23 +2330,50 @@
       else { const data = await resp.json().catch(()=>({error:'Delete failed'})); alert(data.error || 'Delete failed'); }
     };
 
-    // Inject delete buttons into sidebar after render
+    // Inject rename and delete buttons into sidebar after render
     const originalRenderSidebar = renderSidebar;
     renderSidebar = async function(){
       await originalRenderSidebar();
-      // Add delete controls to panel summaries
+      // Add rename and delete controls to panel summaries
       document.querySelectorAll('#panel-list details').forEach(details => {
         const summary = details.querySelector('summary');
-        if(summary && !summary.querySelector('.panel-del')){
+        if(summary && !summary.querySelector('.panel-controls')){
           const panelName = summary.dataset.panelName; const panel = appData.panels.find(p=>p.panelName===panelName);
           if(panel){
-            const btn = document.createElement('button');
-            btn.textContent='✖';
-            btn.title='Delete Panel';
-            btn.className='panel-del';
-            btn.style.marginLeft='8px'; btn.style.background='transparent'; btn.style.border='none'; btn.style.cursor='pointer'; btn.style.color='#b00';
-            btn.onclick = (e)=>{ e.stopPropagation(); showDeletePanel(panel); };
-            summary.appendChild(btn);
+            // Create controls container
+            const controls = document.createElement('div');
+            controls.className = 'panel-controls';
+            controls.style.display = 'inline-flex';
+            controls.style.gap = '4px';
+            controls.style.marginLeft = '8px';
+            
+            // Rename button
+            const renameBtn = document.createElement('button');
+            renameBtn.textContent='✏️';
+            renameBtn.title='Rename Panel';
+            renameBtn.className='panel-rename';
+            renameBtn.style.background='transparent'; 
+            renameBtn.style.border='none'; 
+            renameBtn.style.cursor='pointer'; 
+            renameBtn.style.color='#d69e2e';
+            renameBtn.style.fontSize='12px';
+            renameBtn.onclick = (e)=>{ e.stopPropagation(); showRenamePanel(panel); };
+            
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent='✖';
+            deleteBtn.title='Delete Panel';
+            deleteBtn.className='panel-del';
+            deleteBtn.style.background='transparent'; 
+            deleteBtn.style.border='none'; 
+            deleteBtn.style.cursor='pointer'; 
+            deleteBtn.style.color='#b00';
+            deleteBtn.style.fontSize='12px';
+            deleteBtn.onclick = (e)=>{ e.stopPropagation(); showDeletePanel(panel); };
+            
+            controls.appendChild(renameBtn);
+            controls.appendChild(deleteBtn);
+            summary.appendChild(controls);
           }
         }
       });

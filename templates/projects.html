@@ -167,6 +167,15 @@
             background: #2a4a6b;
         }
 
+        .btn-rename {
+            background: var(--warning-color);
+            color: var(--white);
+        }
+
+        .btn-rename:hover {
+            background: #b7791f;
+        }
+
         .btn-delete {
             background: var(--danger-color);
             color: var(--white);
@@ -445,6 +454,9 @@
                                     <div class="project-meta">Created recently</div>
                                 </div>
                                 <div class="project-actions" onclick="event.stopPropagation()">
+                                    <button class="action-btn btn-rename" title="Rename Project" onclick="showRenameModal({{ project_stat.project.id }}, '{{ project_stat.project.name }}')">
+                                        ✏️ Rename
+                                    </button>
                                     <button class="action-btn btn-open" onclick="openProject({{ project_stat.project.id }})">
                                         📊 Open
                                     </button>
@@ -513,6 +525,26 @@
         </div>
     </div>
 
+    <!-- Rename Project Modal -->
+    <div id="rename-project-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Rename Project</h3>
+                <p id="rename-project-info" style="color: var(--text-secondary); font-size: 0.9rem;"></p>
+            </div>
+            
+            <div class="form-group">
+                <label>New Project Name:</label>
+                <input type="text" id="rename-project-input" placeholder="Enter new project name">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideRenameModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmRename()">Rename Project</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete Project Modal -->
     <div id="delete-project-modal" class="modal-overlay">
         <div class="modal-content">
@@ -541,9 +573,62 @@
     <script>
         let deleteTargetId = null;
         let deleteTargetName = null;
+        let renameTargetId = null;
+        let renameTargetName = null;
 
         function openProject(projectId) {
             window.location.href = `/?project_id=${projectId}`;
+        }
+
+        function showRenameModal(projectId, projectName) {
+            renameTargetId = projectId;
+            renameTargetName = projectName;
+            document.getElementById('rename-project-info').textContent = 
+                `Renaming project: "${projectName}"`;
+            document.getElementById('rename-project-input').value = projectName;
+            document.getElementById('rename-project-modal').style.display = 'flex';
+            // Focus and select the text for easy editing
+            setTimeout(() => {
+                const input = document.getElementById('rename-project-input');
+                input.focus();
+                input.select();
+            }, 100);
+        }
+
+        function hideRenameModal() {
+            document.getElementById('rename-project-modal').style.display = 'none';
+        }
+
+        async function confirmRename() {
+            const newName = document.getElementById('rename-project-input').value.trim();
+            
+            if (!newName) {
+                alert('Please enter a project name.');
+                return;
+            }
+            
+            if (newName === renameTargetName) {
+                hideRenameModal();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/projects/${renameTargetId}/rename`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                if (response.ok) {
+                    hideRenameModal();
+                    location.reload();
+                } else {
+                    const data = await response.json().catch(() => ({ error: 'Rename failed' }));
+                    alert(data.error || 'Rename failed');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
         }
 
         function showDeleteModal(projectId, projectName) {
@@ -635,6 +720,20 @@
         document.getElementById('delete-project-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 hideDeleteModal();
+            }
+        });
+
+        // Close rename modal when clicking outside
+        document.getElementById('rename-project-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                hideRenameModal();
+            }
+        });
+
+        // Handle Enter key in rename input
+        document.getElementById('rename-project-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                confirmRename();
             }
         });
     </script>

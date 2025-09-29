@@ -805,6 +805,43 @@ def delete_panel(project_id, panel_id):
     db.session.commit()
     broadcast_update(project_id)
     return jsonify({"message": f"Panel '{panel_name}' deleted"}), 200
+
+@app.route('/api/panel/<int:project_id>/<int:panel_id>/rename', methods=['PUT'])
+@login_required
+def rename_panel(project_id, panel_id):
+    """Rename a panel."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    panel = Panel.query.get_or_404(panel_id)
+    if panel.project_id != project_id:
+        return jsonify({"error": "Panel does not belong to project"}), 400
+    
+    data = request.get_json()
+    new_name = data.get('name', '').strip()
+    
+    if not new_name:
+        return jsonify({"error": "Panel name is required"}), 400
+    
+    if len(new_name) > 120:  # Assuming there's a length limit
+        return jsonify({"error": "Panel name too long"}), 400
+    
+    # Check if name already exists in this project
+    existing = Panel.query.filter_by(project_id=project_id, panel_name=new_name).first()
+    if existing and existing.id != panel_id:
+        return jsonify({"error": "A panel with this name already exists in this project"}), 409
+    
+    old_name = panel.panel_name
+    panel.panel_name = new_name
+    db.session.commit()
+    broadcast_update(project_id)
+    
+    return jsonify({
+        "message": f"Panel renamed from '{old_name}' to '{new_name}'",
+        "panel": panel.to_dict()
+    }), 200
+
 @app.route('/api/equipment/<int:project_id>', methods=['POST'])
 @login_required
 def add_equipment(project_id):
@@ -3348,6 +3385,41 @@ def delete_project(project_id):
     db.session.delete(project)
     db.session.commit()
     return jsonify({"success": True, "redirect": url_for('project_selection')}), 200
+
+@app.route('/projects/<int:project_id>/rename', methods=['PUT'])
+@login_required
+def rename_project(project_id):
+    """Rename a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    data = request.get_json()
+    new_name = data.get('name', '').strip()
+    
+    if not new_name:
+        return jsonify({"error": "Project name is required"}), 400
+    
+    if len(new_name) > 120:  # Assuming there's a length limit
+        return jsonify({"error": "Project name too long"}), 400
+    
+    # Check if name already exists for this user
+    existing = Project.query.filter_by(user_id=current_user.id, name=new_name).first()
+    if existing and existing.id != project_id:
+        return jsonify({"error": "A project with this name already exists"}), 409
+    
+    old_name = project.name
+    project.name = new_name
+    db.session.commit()
+    
+    return jsonify({
+        "message": f"Project renamed from '{old_name}' to '{new_name}'",
+        "project": {
+            "id": project.id,
+            "name": project.name,
+            "user_id": project.user_id
+        }
+    }), 200
 
 # --- DB INITIALIZATION & RUN ---
 
