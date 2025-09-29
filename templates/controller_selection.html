@@ -540,7 +540,11 @@
 
         async function loadControllerSelectionData() {
             try {
-                const response = await fetch(`/api/projects/${projectId}/controller_selection`);
+                // Get spare percentage from input (default to 0 if not set)
+                const sparePercentage = document.getElementById('spare-percentage') ? 
+                    (parseInt(document.getElementById('spare-percentage').value) || 0) : 0;
+                
+                const response = await fetch(`/api/projects/${projectId}/controller_selection?spare_percentage=${sparePercentage}`);
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -1310,7 +1314,21 @@
         }
 
         // Load data when page loads
-        document.addEventListener('DOMContentLoaded', loadControllerSelectionData);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadControllerSelectionData();
+            
+            // Add event listener for spare percentage changes
+            const sparePercentageInput = document.getElementById('spare-percentage');
+            if (sparePercentageInput) {
+                sparePercentageInput.addEventListener('input', function() {
+                    // Debounce to avoid too many requests
+                    clearTimeout(this.timeout);
+                    this.timeout = setTimeout(() => {
+                        loadControllerSelectionData();
+                    }, 500);
+                });
+            }
+        });
     </script>
 </body>
 </html>
