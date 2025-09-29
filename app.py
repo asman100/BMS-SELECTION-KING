@@ -1185,45 +1185,23 @@ def add_controller_type():
     
     return jsonify(controller_type.to_dict()), 201
 
-@app.route('/api/projects/<int:project_id>/controller_selection', methods=['GET'])
-@login_required
-def get_controller_selection_data(project_id):
-    """Get controller selection data for a project."""
+def get_controller_selection_data_internal(project_id, spare_percentage=0):
+    """Internal function to get controller selection data with optional spare percentage."""
     project = Project.query.get_or_404(project_id)
-    if project.owner != current_user:
-        return jsonify({"error": "Unauthorized"}), 403
-
+    
     # Get panel summary data (reuse existing endpoint logic)
     panels = Panel.query.filter_by(project_id=project_id).all()
     panel_data = []
     
     for panel in panels:
-        panel_summary = {}
-        equipments = ScheduledEquipment.query.filter_by(project_id=project_id, panel_id=panel.id).all()
+        # Use the existing function with spare percentage
+        panel_points = get_panel_point_requirements(project_id, panel.id, spare_percentage)
         
-        for equip in equipments:
-            equip_qty = equip.quantity or 1
-            template = equip.equipment_template
-            
-            selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
-
-            for pt in selected_points:
-                etp = EquipmentTemplatePoint.query.filter_by(equipment_template_id=template.id, point_template_id=pt.id).first()
-                per_template_qty = etp.quantity if etp and etp.quantity else 1
-                point_repeat = (pt.quantity or 1) * per_template_qty * equip_qty
-
-                sub_points = pt.sub_points.all() if hasattr(pt.sub_points, 'all') else pt.sub_points
-                if not sub_points:
-                    panel_summary['UNKNOWN'] = panel_summary.get('UNKNOWN', 0) + point_repeat
-                else:
-                    for sp in sub_points:
-                        panel_summary[sp.point_type] = panel_summary.get(sp.point_type, 0) + point_repeat
-
         panel_data.append({
             'id': panel.id,
             'name': panel.panel_name,
             'floor': panel.floor,
-            'points': panel_summary
+            'points': panel_points
         })
 
     # Get existing controller selections
@@ -1241,14 +1219,28 @@ def get_controller_selection_data(project_id):
         if panel['points']:  # Only generate solutions for panels with points
             server_solutions[panel['id']] = generate_optimal_server_solutions(panel['points'])
     
-    return jsonify({
+    return {
         'panels': panel_data,
         'servers': [s.to_dict() for s in servers],
         'controllers': [c.to_dict() for c in controllers],
         'server_modules': [m.to_dict() for m in server_modules],
         'existing_selections': selections,
         'server_solutions': server_solutions
-    }), 200
+    }
+
+@app.route('/api/projects/<int:project_id>/controller_selection', methods=['GET'])
+@login_required
+def get_controller_selection_data(project_id):
+    """Get controller selection data for a project."""
+    project = Project.query.get_or_404(project_id)
+    if project.owner != current_user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Get spare percentage from query parameters (for initial load without optimization)
+    spare_percentage = request.args.get('spare_percentage', 0, type=float)
+    
+    data = get_controller_selection_data_internal(project_id, spare_percentage)
+    return jsonify(data), 200
 
 @app.route('/api/projects/<int:project_id>/controller_selection/optimize', methods=['POST'])
 @login_required
@@ -1314,8 +1306,9 @@ def optimize_controller_selection(project_id):
 
     db.session.commit()
     
-    # Return updated selection data
-    return get_controller_selection_data(project_id)
+    # Return updated selection data with the spare percentage that was used
+    data = get_controller_selection_data_internal(project_id, spare_percentage)
+    return jsonify(data), 200
 
 def calculate_server_solution_cost(server_type_id, selected_modules):
     """Calculate total cost for a server solution including modules and accessories."""
