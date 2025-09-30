@@ -2273,20 +2273,20 @@ def validate_report_prerequisites(project_id, selected_reports):
     has_optimization = len(controller_selections) > 0
     
     # Check which reports require controller optimization
-    reports_requiring_optimization = ['field-devices-boq', 'controller-boq']
+    reports_requiring_optimization = ['field-devices-boq', 'controller-boq', 'financial-report']
     
     for report_type in selected_reports:
         if report_type in reports_requiring_optimization and not has_optimization:
             errors.append(f"{report_type.replace('-', ' ').title()}: Requires controller selection optimization to be completed first")
         
         # Additional validations for specific reports
-        if report_type == 'equipment-list':
+        if report_type in ['equipment-list', 'technical-report']:
             # Check if there are scheduled equipments
             scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
             if not scheduled_equipments:
                 errors.append("Equipment List: No equipment scheduled in project")
         
-        if report_type == 'point-list':
+        if report_type in ['point-list', 'technical-report']:
             # Check if there are scheduled equipments with selected points
             scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
             has_points = any(len(equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points) > 0 
@@ -2924,14 +2924,20 @@ def generate_latex_content(project_id, selected_reports, header, footer, company
 
     # Generate content for each selected report
     for report_type in selected_reports:
-        if report_type == 'equipment-list':
-            latex_content += generate_equipment_list_latex(project_id)
+        if report_type == 'technical-report':
+            # Technical report: Equipment list, Point list, BOQ without costs
+            latex_content += generate_technical_report_content(project_id)
+        elif report_type == 'financial-report':
+            # Financial report: Combined BOQ with costs only
+            latex_content += generate_financial_report_content(project_id)
+        elif report_type == 'equipment-list':
+            latex_content += generate_equipment_list_latex(project_id, include_costs=True)
         elif report_type == 'point-list':
             latex_content += generate_point_list_latex(project_id)
         elif report_type == 'field-devices-boq':
-            latex_content += generate_field_devices_boq_latex(project_id)
+            latex_content += generate_field_devices_boq_latex(project_id, include_costs=True)
         elif report_type == 'controller-boq':
-            latex_content += generate_controller_boq_latex(project_id)
+            latex_content += generate_controller_boq_latex(project_id, include_costs=True)
 
     latex_content += r"""
 \end{document}
@@ -2939,17 +2945,26 @@ def generate_latex_content(project_id, selected_reports, header, footer, company
 
     return latex_content
 
-def generate_equipment_list_latex(project_id):
+def generate_equipment_list_latex(project_id, include_costs=True):
     """Generate LaTeX content for equipment list."""
     
     # Get equipment data
     scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
     
-    latex_content = r"""
+    if include_costs:
+        latex_content = r"""
 \section{Equipment List}
 
 This section provides a complete list of all scheduled equipment in the project.
 
+\begin{longtable}{|l|l|l|l|l|}
+\hline
+\textbf{Panel} & \textbf{Equipment Type} & \textbf{Instance Name} & \textbf{Quantity} & \textbf{Floor} \\
+\hline
+\endhead
+"""
+    else:
+        latex_content = r"""
 \begin{longtable}{|l|l|l|l|l|}
 \hline
 \textbf{Panel} & \textbf{Equipment Type} & \textbf{Instance Name} & \textbf{Quantity} & \textbf{Floor} \\
@@ -3104,7 +3119,7 @@ This section provides a detailed breakdown of I/O points by equipment.
 """
     return latex_content
 
-def generate_field_devices_boq_latex(project_id):
+def generate_field_devices_boq_latex(project_id, include_costs=True):
     """Generate LaTeX content for field devices BOQ using real data."""
     
     # Get real BOQ data from the existing API
@@ -3147,7 +3162,8 @@ def generate_field_devices_boq_latex(project_id):
                 field_devices_boq[part_num]['total_cost'] = field_devices_boq[part_num]['quantity'] * (part.cost or 0)
                 total_field_cost += total_qty * (part.cost or 0)
     
-    latex_content = r"""
+    if include_costs:
+        latex_content = r"""
 \section{Field Devices Bill of Quantities}
 
 This section provides a bill of quantities for all field devices based on the scheduled equipment and selected I/O points.
@@ -3155,6 +3171,14 @@ This section provides a bill of quantities for all field devices based on the sc
 \begin{longtable}{|l|l|l|l|l|l|}
 \hline
 \textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+    else:
+        latex_content = r"""
+\begin{longtable}{|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} \\
 \hline
 \endhead
 """
@@ -3168,18 +3192,27 @@ This section provides a bill of quantities for all field devices based on the sc
         unit_cost = item['unit_cost']
         total_cost = item['total_cost']
         
-        latex_content += f"{part_num} & {description} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+        if include_costs:
+            latex_content += f"{part_num} & {description} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+        else:
+            latex_content += f"{part_num} & {description} & {category} & {quantity} \\\\\n\\hline\n"
 
-    latex_content += f"""
+    if include_costs:
+        latex_content += f"""
 \\hline
 \\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_field_cost:.2f}}} \\\\
 \\hline
 \\end{{longtable}}
 
 """
+    else:
+        latex_content += r"""
+\end{longtable}
+
+"""
     return latex_content
 
-def generate_controller_boq_latex(project_id):
+def generate_controller_boq_latex(project_id, include_costs=True):
     """Generate LaTeX content for controller BOQ using real data."""
     
     # Get controller selections and generate real BOQ data
@@ -3270,7 +3303,8 @@ def generate_controller_boq_latex(project_id):
                         accessory_boq[acc_part_num]['total_cost'] = accessory_boq[acc_part_num]['quantity'] * accessory.cost
                         total_controller_cost += module_qty * accessory.cost
     
-    latex_content = r"""
+    if include_costs:
+        latex_content = r"""
 \section{Controller Bill of Quantities}
 
 This section provides a bill of quantities for controllers, servers, modules, and accessories based on the optimization results.
@@ -3278,6 +3312,14 @@ This section provides a bill of quantities for controllers, servers, modules, an
 \begin{longtable}{|l|l|l|l|l|l|}
 \hline
 \textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} & \textbf{Unit Cost} & \textbf{Total Cost} \\
+\hline
+\endhead
+"""
+    else:
+        latex_content = r"""
+\begin{longtable}{|l|l|l|l|}
+\hline
+\textbf{Part Number} & \textbf{Description} & \textbf{Category} & \textbf{Quantity} \\
 \hline
 \endhead
 """
@@ -3298,16 +3340,185 @@ This section provides a bill of quantities for controllers, servers, modules, an
         unit_cost = item['unit_cost']
         total_cost = item['total_cost']
         
-        latex_content += f"{part_num} & {name} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+        if include_costs:
+            latex_content += f"{part_num} & {name} & {category} & {quantity} & \\${unit_cost:.2f} & \\${total_cost:.2f} \\\\\n\\hline\n"
+        else:
+            latex_content += f"{part_num} & {name} & {category} & {quantity} \\\\\n\\hline\n"
 
-    latex_content += f"""
+    if include_costs:
+        latex_content += f"""
 \\hline
 \\textbf{{TOTAL}} & & & & & \\textbf{{\\${total_controller_cost:.2f}}} \\\\
 \\hline
 \\end{{longtable}}
 
 """
+    else:
+        latex_content += r"""
+\end{longtable}
+
+"""
     return latex_content
+
+def generate_technical_report_content(project_id):
+    """Generate Technical Report with Equipment List, Point List, and BOQ without costs - with section dividers."""
+    content = ""
+    
+    # Section 1: Equipment List (without costs)
+    content += r"""
+\newpage
+\section{Equipment List}
+\rule{\textwidth}{2pt}
+\vspace{0.5cm}
+
+This section provides a complete list of all scheduled equipment in the project.
+
+"""
+    content += generate_equipment_list_latex(project_id, include_costs=False)
+    
+    # Section 2: Point List
+    content += r"""
+\newpage  
+\section{Point List}
+\rule{\textwidth}{2pt}
+\vspace{0.5cm}
+
+This section provides a detailed breakdown of I/O points by equipment.
+
+"""
+    content += generate_point_list_latex(project_id)
+    
+    # Section 3: Bill of Quantities (without costs)
+    content += r"""
+\newpage
+\section{Bill of Quantities}
+\rule{\textwidth}{2pt}
+\vspace{0.5cm}
+
+This section provides quantities for all field devices and controllers.
+
+"""
+    content += generate_field_devices_boq_latex(project_id, include_costs=False)
+    content += generate_controller_boq_latex(project_id, include_costs=False)
+    
+    return content
+
+def generate_financial_report_content(project_id):
+    """Generate Financial Report with combined BOQ (field devices + controllers) with costs - with section dividers."""
+    content = ""
+    
+    # Combined Financial Summary
+    content += r"""
+\newpage
+\section{Financial Summary}
+\rule{\textwidth}{2pt}
+\vspace{0.5cm}
+
+This section provides a comprehensive cost breakdown for all project components.
+
+"""
+    
+    # Subsection: Field Devices BOQ with costs
+    content += r"""
+\subsection{Field Devices Bill of Quantities}
+\vspace{0.3cm}
+
+"""
+    content += generate_field_devices_boq_latex(project_id, include_costs=True)
+    
+    # Subsection: Controller BOQ with costs
+    content += r"""
+\subsection{Controller Bill of Quantities}
+\vspace{0.3cm}
+
+"""
+    content += generate_controller_boq_latex(project_id, include_costs=True)
+    
+    # Grand Total Section
+    # Calculate totals from both BOQs
+    field_devices_total = calculate_field_devices_total(project_id)
+    controller_total = calculate_controller_total(project_id)
+    grand_total = field_devices_total + controller_total
+    
+    content += r"""
+\vspace{0.5cm}
+\rule{\textwidth}{1pt}
+\vspace{0.3cm}
+
+\begin{center}
+\Large\textbf{Grand Total Summary}
+\end{center}
+
+\vspace{0.3cm}
+
+\begin{tabular}{lr}
+\textbf{Field Devices Total:} & \textbf{\$""" + f"{field_devices_total:.2f}" + r"""} \\
+\textbf{Controller Total:} & \textbf{\$""" + f"{controller_total:.2f}" + r"""} \\
+\hline
+\textbf{GRAND TOTAL:} & \textbf{\$""" + f"{grand_total:.2f}" + r"""} \\
+\end{tabular}
+
+"""
+    
+    return content
+
+def calculate_field_devices_total(project_id):
+    """Calculate total cost of field devices."""
+    total = 0
+    scheduled_equipments = ScheduledEquipment.query.filter_by(project_id=project_id).all()
+    
+    for equip in scheduled_equipments:
+        equip_qty = equip.quantity or 1
+        template = equip.equipment_template
+        
+        if not template:
+            continue
+            
+        selected_points = equip.selected_points.all() if hasattr(equip.selected_points, 'all') else equip.selected_points
+        
+        for pt in selected_points:
+            etp = EquipmentTemplatePoint.query.filter_by(
+                equipment_template_id=template.id, 
+                point_template_id=pt.id
+            ).first()
+            per_template_qty = etp.quantity if etp and etp.quantity else 1
+            point_qty = (pt.quantity or 1) * per_template_qty * equip_qty
+            
+            if pt.part and pt.part.cost:
+                total += point_qty * pt.part.cost
+    
+    return total
+
+def calculate_controller_total(project_id):
+    """Calculate total cost of controllers, modules, and accessories."""
+    total = 0
+    controller_selections = ControllerSelection.query.filter_by(project_id=project_id).all()
+    
+    for selection in controller_selections:
+        if selection.controller_type:
+            controller = selection.controller_type
+            total += selection.quantity * controller.cost
+            
+            # Add controller accessories
+            controller_accessories = Accessory.query.filter_by(parent_part_number=controller.part_number).all()
+            for accessory in controller_accessories:
+                total += selection.quantity * accessory.cost
+        
+        # Add server modules if this is a server selection
+        if selection.is_server_selection and selection.server_modules:
+            modules = json.loads(selection.server_modules)
+            for module_data in modules:
+                module = ServerModule.query.get(module_data.get('id'))
+                if module:
+                    module_qty = module_data.get('quantity', 1)
+                    total += module_qty * module.cost
+                    
+                    # Add module accessories (I/O module bases, power supply bases)
+                    module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    for accessory in module_accessories:
+                        total += module_qty * accessory.cost
+    
+    return total
 
 # --- SOCKET.IO ---
 
