@@ -370,8 +370,14 @@
         <div class="actions">
             <a href="/controller_selection/{{ project_id }}" class="btn btn-secondary">Back to Controller Selection</a>
             <button onclick="generatePreview()" class="btn btn-primary" id="preview-btn" disabled>Generate Preview</button>
-            <button onclick="downloadLatex()" class="btn btn-success" id="latex-btn" disabled>Download LaTeX</button>
-            <button onclick="downloadPDF()" class="btn btn-success" id="pdf-btn" disabled>Download PDF</button>
+            
+            <!-- Technical Report Downloads -->
+            <button onclick="downloadFile('technical', 'latex')" class="btn btn-info" id="tech-latex-btn" disabled style="margin-left: 10px;">📄 Technical LaTeX</button>
+            <button onclick="downloadFile('technical', 'pdf')" class="btn btn-success" id="tech-pdf-btn" disabled>📄 Technical PDF</button>
+            
+            <!-- Financial Report Downloads -->
+            <button onclick="downloadFile('financial', 'latex')" class="btn btn-info" id="fin-latex-btn" disabled style="margin-left: 10px;">💰 Financial LaTeX</button>
+            <button onclick="downloadFile('financial', 'pdf')" class="btn btn-success" id="fin-pdf-btn" disabled>💰 Financial PDF</button>
         </div>
 
         <div id="preview-section" class="preview-section">
@@ -453,12 +459,22 @@
         function updateButtonStates() {
             const hasSelection = selectedReports.size > 0;
             const previewBtn = document.getElementById('preview-btn');
-            const latexBtn = document.getElementById('latex-btn');
-            const pdfBtn = document.getElementById('pdf-btn');
+            const techLatexBtn = document.getElementById('tech-latex-btn');
+            const techPdfBtn = document.getElementById('tech-pdf-btn');
+            const finLatexBtn = document.getElementById('fin-latex-btn');
+            const finPdfBtn = document.getElementById('fin-pdf-btn');
             
             previewBtn.disabled = !hasSelection;
-            latexBtn.disabled = !generatedContent;
-            pdfBtn.disabled = !generatedContent;
+            
+            // Enable technical buttons if technical content exists
+            const hasTechnical = generatedContent && generatedContent.technical;
+            techLatexBtn.disabled = !hasTechnical;
+            techPdfBtn.disabled = !hasTechnical;
+            
+            // Enable financial buttons if financial content exists
+            const hasFinancial = generatedContent && generatedContent.financial;
+            finLatexBtn.disabled = !hasFinancial;
+            finPdfBtn.disabled = !hasFinancial;
         }
 
         async function generatePreview() {
@@ -536,8 +552,15 @@
                     }
                 }
 
-                // Store the combined content for download
-                generatedContent = results.length > 0 ? results[0].data : null;
+                // Store the content for download - organized by report type
+                generatedContent = {};
+                results.forEach(result => {
+                    if (result.reportType === 'technical-report') {
+                        generatedContent.technical = result.data;
+                    } else if (result.reportType === 'financial-report') {
+                        generatedContent.financial = result.data;
+                    }
+                });
                 
                 loadingPreview.style.display = 'none';
                 updateButtonStates();
@@ -621,66 +644,57 @@
             }
         }
 
-        async function downloadLatex() {
-            if (!generatedContent) {
-                showNotification('Please generate preview first.', 'warning');
+        async function downloadFile(reportType, fileType) {
+            if (!generatedContent || !generatedContent[reportType]) {
+                showNotification(`Please generate ${reportType} preview first.`, 'warning');
                 return;
             }
 
+            const data = generatedContent[reportType];
+            
             try {
-                const blob = new Blob([generatedContent.latex_content], { type: 'application/x-latex' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `bms_reports_project_${projectId}.tex`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                showNotification('LaTeX file downloaded successfully!', 'success');
-            } catch (error) {
-                console.error('Error downloading LaTeX:', error);
-                showNotification('Error downloading LaTeX file: ' + error.message, 'error');
-            }
-        }
-
-        async function downloadPDF() {
-            if (!generatedContent) {
-                showNotification('Please generate preview first.', 'warning');
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        latex_content: generatedContent.latex_content
-                    })
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Failed to generate PDF');
+                if (fileType === 'latex') {
+                    // Download LaTeX source
+                    const blob = new Blob([data.latex_content], { type: 'application/x-latex' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `bms_${reportType}_report_project_${projectId}.tex`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} LaTeX file downloaded!`, 'success');
+                } else {
+                    // Download compiled PDF
+                    const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            latex_content: data.latex_content,
+                            report_type: reportType
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to generate PDF');
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `bms_${reportType}_report_project_${projectId}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} PDF downloaded!`, 'success');
                 }
-
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `bms_reports_project_${projectId}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                showNotification('PDF downloaded successfully!', 'success');
             } catch (error) {
-                console.error('Error downloading PDF:', error);
-                showNotification('Error downloading PDF: ' + error.message, 'error');
+                console.error(`Error downloading ${reportType} ${fileType}:`, error);
+                showNotification(`Error downloading ${reportType} ${fileType}: ` + error.message, 'error');
             }
         }
 

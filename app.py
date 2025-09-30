@@ -2489,6 +2489,15 @@ def generate_controller_boq_reportlab(project_id, styles):
                     
                     # Add module accessories (I/O module bases, power supply bases)
                     module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    
+                    # Special handling for power supply modules - ensure power supply base is included
+                    if 'POWER SUPPLY' in module.name.upper() or 'PS' in module.part_number.upper():
+                        ps_base = Accessory.query.filter_by(part_number='SXWTBPSW110001').first()
+                        if ps_base:
+                            # Check if not already in accessories
+                            if not any(acc.part_number == 'SXWTBPSW110001' for acc in module_accessories):
+                                module_accessories.append(ps_base)
+                    
                     for accessory in module_accessories:
                         acc_part_num = accessory.part_number
                         if acc_part_num not in accessory_boq:
@@ -3287,6 +3296,15 @@ def generate_controller_boq_latex(project_id, include_costs=True):
                     
                     # Add module accessories (I/O module bases, power supply bases)
                     module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    
+                    # Special handling for power supply modules - ensure power supply base is included
+                    if 'POWER SUPPLY' in module.name.upper() or 'PS' in module.part_number.upper():
+                        ps_base = Accessory.query.filter_by(part_number='SXWTBPSW110001').first()
+                        if ps_base:
+                            # Check if not already in accessories
+                            if not any(acc.part_number == 'SXWTBPSW110001' for acc in module_accessories):
+                                module_accessories.append(ps_base)
+                    
                     for accessory in module_accessories:
                         acc_part_num = accessory.part_number
                         if acc_part_num not in accessory_boq:
@@ -3515,6 +3533,15 @@ def calculate_controller_total(project_id):
                     
                     # Add module accessories (I/O module bases, power supply bases)
                     module_accessories = Accessory.query.filter_by(parent_part_number=module.part_number).all()
+                    
+                    # Special handling for power supply modules - ensure power supply base is included
+                    if 'POWER SUPPLY' in module.name.upper() or 'PS' in module.part_number.upper():
+                        ps_base = Accessory.query.filter_by(part_number='SXWTBPSW110001').first()
+                        if ps_base:
+                            # Check if not already in accessories
+                            if not any(acc.part_number == 'SXWTBPSW110001' for acc in module_accessories):
+                                module_accessories.append(ps_base)
+                    
                     for accessory in module_accessories:
                         total += module_qty * accessory.cost
     
