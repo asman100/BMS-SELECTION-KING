@@ -2077,13 +2077,12 @@ def create_equipment_preset(project_id):
         if field not in data:
             return jsonify({"error": f"Missing required field: {field}"}), 400
     
-    # Check if equipment template exists and belongs to the project
+    # Check if equipment template exists (templates are global)
     equipment_template = EquipmentTemplate.query.filter_by(
-        id=data['equipment_template_id'], 
-        project_id=project_id
+        id=data['equipment_template_id']
     ).first()
     if not equipment_template:
-        return jsonify({"error": "Equipment template not found or unauthorized"}), 404
+        return jsonify({"error": "Equipment template not found"}), 404
     
     # Check if preset name already exists in this project
     existing_preset = EquipmentPreset.query.filter_by(
