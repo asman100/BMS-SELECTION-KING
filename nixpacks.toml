@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["python312"]
-
-[phases.install]
-cmds = ["pip install -r requirements_clean.txt"]
-
-[start]
-cmd = "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT app:app"
