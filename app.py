@@ -2727,7 +2727,7 @@ def generate_point_list_reportlab(project_id, styles):
                     panels_data[panel_name]['panel_totals']['communication'] += 1
     
     # Create table data with panel grouping
-    data = [['EQUIPMENT NAME', 'POINT NAME', 'PART NUMBER', 'Sum of DI', 'Sum of DO', 'Sum of AI', 'Sum of AO', 'SOFTWARE']]
+    data = [['EQUIPMENT NAME', 'POINT NAME', 'PART NUMBER', 'DI', 'DO', 'AI', 'AO', 'SOFTWARE']]
     
     grand_totals = {'di': 0, 'do': 0, 'ai': 0, 'ao': 0, 'communication': 0}
     
@@ -3007,7 +3007,7 @@ This section provides a detailed breakdown of I/O points by equipment.
 
 \begin{longtable}{|l|l|p{3cm}|l|l|l|l|l|}
 \hline
-\textbf{Equipment} & \textbf{Point Name} & \textbf{Part Number} & \textbf{Sum of DI} & \textbf{Sum of DO} & \textbf{Sum of AI} & \textbf{Sum of AO} & \textbf{Software} \\
+\textbf{Equipment} & \textbf{Point Name} & \textbf{Part Number} & \textbf{DI} & \textbf{DO} & \textbf{AI} & \textbf{AO} & \textbf{Software} \\
 \hline
 \endhead
 """
