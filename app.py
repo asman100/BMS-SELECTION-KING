@@ -17,14 +17,30 @@ from pylatex.package import Package
 # --- APP SETUP ---
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'bms_tool.db')
+
+# Configuration with environment variables
+# Use DATABASE_URL if provided (for PostgreSQL on Railway), otherwise use SQLite
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Railway provides DATABASE_URL for PostgreSQL
+    # Convert postgres:// to postgresql:// if needed (for SQLAlchemy compatibility)
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Default to SQLite for local development
+    # On Railway with persistent volume, use /data directory
+    data_dir = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', basedir)
+    db_path = os.path.join(data_dir, 'bms_tool.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your_secret_key'  # Change this!
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # --- DATABASE MODELS (The Schema) ---
 
@@ -3842,4 +3858,8 @@ def load_csv_data():
 
 if __name__ == '__main__':
     setup_database(app)
-    socketio.run(app, debug=True, port=5001, allow_unsafe_werkzeug=True)
+    # Get port from environment variable (Railway sets PORT automatically)
+    port = int(os.environ.get('PORT', 5001))
+    # In production (Railway), debug should be False
+    debug = os.environ.get('FLASK_ENV', 'development') == 'development'
+    socketio.run(app, debug=debug, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
