@@ -497,6 +497,77 @@
             background-color: var(--white);
         }
 
+        .presets-panel {
+            width: 300px;
+            background-color: #f8fafc;
+            color: var(--text-primary);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            flex-shrink: 0;
+            border-left: 1px solid var(--border-color);
+            overflow-y: auto;
+        }
+
+        .presets-panel h2 {
+            margin: 0 0 1.5rem 0;
+            font-size: 1.125rem;
+            font-weight: 600;
+            text-align: center;
+            color: var(--text-primary);
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .preset-item {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .preset-item:hover {
+            border-color: var(--btn-primary-bg);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .preset-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .preset-details {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .preset-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .preset-actions button {
+            flex: 1;
+            padding: 0.375rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .empty-presets {
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 2rem;
+        }
+
         .content-header {
             background: linear-gradient(135deg, var(--white), #f8fafc);
             padding: 2rem;
@@ -716,19 +787,23 @@
             display: flex;
             gap: 2rem;
             max-height: 60vh;
-            overflow-y: auto;
         }
 
         .modal-list-pane {
             flex: 1;
             min-width: 300px;
             flex-shrink: 0;
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
         .modal-form-pane {
             flex: 1;
             min-width: 350px;
             flex-shrink: 1;
+            position: sticky;
+            top: 0;
+            height: fit-content;
         }
 
         #template-list li,
@@ -840,15 +915,42 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
+            max-height: calc(60vh - 150px);
+            overflow-y: auto;
+            display: block;
         }
+        
+        #parts-table thead,
+        #parts-table tbody {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        
+        #parts-table tbody {
+            display: block;
+            max-height: calc(60vh - 150px);
+            overflow-y: auto;
+        }
+        
+        #parts-table tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        
         #parts-table th, #parts-table td {
             border: 1px solid var(--border-color);
             padding: 8px;
             text-align: left;
+            width: 25%;
         }
         #parts-table th {
             background-color: var(--sidebar-item-bg);
             color: var(--sidebar-text);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
         #parts-table tbody tr:nth-child(even) { background-color: #e9ecef; }
         #parts-table tbody tr:hover { background-color: #d9e2ef; cursor: pointer; }
@@ -908,11 +1010,20 @@
                         </div>
                         <div class="form-group"><label for="equipment-type">Equipment Type</label><select id="equipment-type" required><option value="">--- Select ---</option></select></div>
                         <div id="point-configuration"><h4>Configure Points</h4><div id="checkbox-container" class="checkbox-group"></div></div>
-                        <div id="submit-button-container"><button type="submit" class="btn btn-primary">Add Equipment to Schedule</button></div>
+                        <div id="submit-button-container">
+                            <button type="submit" class="btn btn-primary">Add Equipment to Schedule</button>
+                            <button type="button" id="save-preset-btn" class="btn btn-success" style="margin-left: 10px;">Save as Preset</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </main>
+        <aside class="presets-panel">
+            <h2>📋 Equipment Presets</h2>
+            <div id="presets-container">
+                <div class="empty-presets">No presets available</div>
+            </div>
+        </aside>
     </div>
 
     <div id="add-panel-modal" class="modal-overlay">
@@ -1065,18 +1176,103 @@
     </div>
 
     <div id="delete-panel-modal" class="modal-overlay" style="display:none;">
-      <div class="modal">
-        <h3>Delete Panel</h3>
-        <p id="delete-panel-warning" style="color:#600; font-size:0.9rem;"></p>
-        <p>Type the panel name to confirm:</p>
-        <input type="text" id="delete-panel-confirm" />
-        <p style="margin-top:10px;">Additionally type DELETE below:</p>
-        <input type="text" id="delete-panel-confirm-word" placeholder="DELETE" />
-        <div class="modal-footer">
-          <button type="button" id="cancel-delete-panel">Cancel</button>
-          <button type="button" id="confirm-delete-panel" class="btn btn-danger">Delete Permanently</button>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>⚠️ Delete Panel</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('cancel-delete-panel').click()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="delete-panel-warning" style="color: var(--danger-color); font-size: 0.9rem; margin-bottom: 1rem;"></p>
+                <div class="form-group">
+                    <label for="delete-panel-confirm">Type the panel name to confirm:</label>
+                    <input type="text" id="delete-panel-confirm" placeholder="Panel name" />
+                </div>
+                <div class="form-group">
+                    <label for="delete-panel-confirm-word">Type DELETE to confirm:</label>
+                    <input type="text" id="delete-panel-confirm-word" placeholder="DELETE" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancel-delete-panel">Cancel</button>
+                <button type="button" id="confirm-delete-panel" class="btn btn-danger">Delete Permanently</button>
+            </div>
         </div>
-      </div>
+    </div>
+
+    <!-- Rename Panel Modal -->
+    <div id="rename-panel-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>✏️ Rename Panel</h2>
+                <button class="modal-close-btn" onclick="hideRenamePanelModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="rename-panel-info" style="color: var(--text-secondary); margin-bottom: 1rem;"></p>
+                <div class="form-group">
+                    <label for="rename-panel-input">New Panel Name:</label>
+                    <input type="text" id="rename-panel-input" placeholder="Enter new panel name" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="hideRenamePanelModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmPanelRename()">Rename Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Preset Modal -->
+    <div id="save-preset-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Save Equipment Preset</h2>
+                <button class="modal-close-btn">&times;</button>
+            </div>
+            <form id="save-preset-form">
+                <div class="form-group">
+                    <label for="preset-name">Preset Name</label>
+                    <input type="text" id="preset-name" placeholder="e.g., Standard AHU Configuration" required>
+                </div>
+                <div class="form-group">
+                    <label>Equipment Details</label>
+                    <div id="preset-equipment-summary" style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeSavePresetModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Preset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Apply Preset Modal -->
+    <div id="apply-preset-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Apply Equipment Preset</h2>
+                <button class="modal-close-btn">&times;</button>
+            </div>
+            <form id="apply-preset-form">
+                <input type="hidden" id="apply-preset-id">
+                <div class="form-group">
+                    <label>Preset Details</label>
+                    <div id="apply-preset-summary" style="padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;"></div>
+                </div>
+                <div class="form-group">
+                    <label for="apply-panel-select">Select Panel</label>
+                    <select id="apply-panel-select" required>
+                        <option value="">--- Select Panel ---</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="apply-instance-name">Equipment Instance Name</label>
+                    <input type="text" id="apply-instance-name" placeholder="e.g., AHU-02" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeApplyPresetModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Apply Preset</button>
+                </div>
+            </form>
+        </div>
     </div>
 
 <script>
@@ -1156,7 +1352,8 @@
         scheduledEquipment: [],
         pointTemplates: {},
         equipmentTemplates: {},
-        parts: {}
+        parts: {},
+        presets: []
     };
     const panelList = document.getElementById("panel-list"),
         searchBar = document.getElementById("search-bar"),
@@ -1246,6 +1443,7 @@
         populatePartSelector();
         resetForm();
         renderPartsModal();
+        renderPresets();
     }
 
     // --- MODAL GENERIC HANDLERS ---
@@ -1263,6 +1461,177 @@
     setupModal(equipmentLibraryModal, manageLibraryBtn, ".modal-close-btn", renderEquipmentLibraryModal);
     setupModal(pointsLibraryModal, managePointsBtn, ".modal-close-btn", renderPointsModal);
     setupModal(partsLibraryModal, managePartsBtn, ".modal-close-btn", renderPartsModal);
+
+    // --- PRESET FUNCTIONALITY ---
+    function renderPresets() {
+        const container = document.getElementById('presets-container');
+        if (!appData.presets || appData.presets.length === 0) {
+            container.innerHTML = '<div class="empty-presets">No presets available</div>';
+            return;
+        }
+
+        container.innerHTML = appData.presets.map(preset => `
+            <div class="preset-item">
+                <div class="preset-name">${preset.name}</div>
+                <div class="preset-details">
+                    ${preset.equipment_name} (Qty: ${preset.quantity})<br>
+                    ${preset.selectedPoints.length} points selected
+                </div>
+                <div class="preset-actions">
+                    <button class="btn btn-primary" onclick="showApplyPresetModal(${preset.id})">Apply</button>
+                    <button class="btn btn-danger" onclick="deletePreset(${preset.id})">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function showSavePresetModal() {
+        // Validate form before showing modal
+        const equipmentType = document.getElementById('equipment-type').value;
+        const instanceName = document.getElementById('instance-name').value.trim();
+        const quantity = document.getElementById('quantity').value;
+
+        if (!equipmentType || !instanceName) {
+            alert('Please fill in all required equipment fields before saving as preset.');
+            return;
+        }
+
+        // Get selected points
+        const selectedPoints = getSelectedPoints();
+        if (selectedPoints.length === 0) {
+            alert('Please select at least one point before saving as preset.');
+            return;
+        }
+
+        // Populate summary
+        const equipmentTemplate = appData.equipmentTemplates[equipmentType];
+        const summary = `
+            <strong>Equipment:</strong> ${equipmentTemplate.name}<br>
+            <strong>Quantity:</strong> ${quantity}<br>
+            <strong>Selected Points:</strong> ${selectedPoints.length} points
+        `;
+        document.getElementById('preset-equipment-summary').innerHTML = summary;
+        
+        document.getElementById('save-preset-modal').style.display = 'flex';
+    }
+
+    function closeSavePresetModal() {
+        document.getElementById('save-preset-modal').style.display = 'none';
+        document.getElementById('preset-name').value = '';
+    }
+
+    function showApplyPresetModal(presetId) {
+        const preset = appData.presets.find(p => p.id === presetId);
+        if (!preset) return;
+
+        // Populate preset details
+        const summary = `
+            <strong>Preset:</strong> ${preset.name}<br>
+            <strong>Equipment:</strong> ${preset.equipment_name}<br>
+            <strong>Quantity:</strong> ${preset.quantity}<br>
+            <strong>Points:</strong> ${preset.selectedPoints.length} selected
+        `;
+        document.getElementById('apply-preset-summary').innerHTML = summary;
+        document.getElementById('apply-preset-id').value = presetId;
+
+        // Populate panel options
+        const panelSelect = document.getElementById('apply-panel-select');
+        panelSelect.innerHTML = '<option value="">--- Select Panel ---</option>' +
+            appData.panels.map(panel => 
+                `<option value="${panel.id}">${panel.panelName} (${panel.floor})</option>`
+            ).join('');
+
+        document.getElementById('apply-preset-modal').style.display = 'flex';
+    }
+
+    function closeApplyPresetModal() {
+        document.getElementById('apply-preset-modal').style.display = 'none';
+        document.getElementById('apply-instance-name').value = '';
+        document.getElementById('apply-panel-select').value = '';
+    }
+
+    async function deletePreset(presetId) {
+        const preset = appData.presets.find(p => p.id === presetId);
+        if (!preset) return;
+        
+        if (!confirm(`Are you sure you want to delete the preset "${preset.name}"?`)) return;
+
+        try {
+            await apiCall(`/api/projects/${projectId}/presets/${presetId}`, 'DELETE');
+            appData = await apiCall(`/api/data/${projectId}`);
+            renderPresets();
+        } catch (error) {
+            alert('Error deleting preset: ' + error.message);
+        }
+    }
+
+    // Save Preset Form Handler
+    document.getElementById('save-preset-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const presetName = document.getElementById('preset-name').value.trim();
+        if (!presetName) return;
+
+        const equipmentType = document.getElementById('equipment-type').value;
+        const quantity = parseInt(document.getElementById('quantity').value);
+        const selectedPoints = getSelectedPoints();
+
+        try {
+            await apiCall(`/api/projects/${projectId}/presets`, 'POST', {
+                name: presetName,
+                equipment_template_id: appData.equipmentTemplates[equipmentType].id,
+                quantity: quantity,
+                selectedPoints: selectedPoints
+            });
+            
+            appData = await apiCall(`/api/data/${projectId}`);
+            renderPresets();
+            closeSavePresetModal();
+        } catch (error) {
+            alert('Error saving preset: ' + error.message);
+        }
+    });
+
+    // Apply Preset Form Handler
+    document.getElementById('apply-preset-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const presetId = document.getElementById('apply-preset-id').value;
+        const panelId = document.getElementById('apply-panel-select').value;
+        const instanceName = document.getElementById('apply-instance-name').value.trim();
+
+        if (!panelId || !instanceName) return;
+
+        try {
+            await apiCall(`/api/projects/${projectId}/presets/${presetId}/apply`, 'POST', {
+                panel_id: parseInt(panelId),
+                instance_name: instanceName
+            });
+            
+            appData = await apiCall(`/api/data/${projectId}`);
+            renderSidebar();
+            closeApplyPresetModal();
+        } catch (error) {
+            alert('Error applying preset: ' + error.message);
+        }
+    });
+
+    // Helper function to get selected points
+    function getSelectedPoints() {
+        const checkboxContainer = document.getElementById('checkbox-container');
+        return Array.from(checkboxContainer.querySelectorAll("input:checked")).map(cb => parseInt(cb.value));
+    }
+
+    // Close modals when clicking outside
+    document.getElementById('save-preset-modal').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            closeSavePresetModal();
+        }
+    });
+
+    document.getElementById('apply-preset-modal').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            closeApplyPresetModal();
+        }
+    });
 
     // --- PANEL LOGIC (single optimistic handler) ---
     addPanelForm.addEventListener('submit', async (e) => {
@@ -1770,7 +2139,9 @@
         });
         formTitle.textContent = `Editing: ${item.instanceName}`;
         mainHeader.textContent = `Editing Equipment`;
-        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button>`;
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-update">Update Equipment</button><button type="button" id="save-preset-btn" class="btn btn-success" style="margin-left: 10px;">Save as Preset</button>`;
+        // Re-bind event listener for the dynamically created Save Preset button
+        document.getElementById('save-preset-btn').addEventListener('click', showSavePresetModal);
         panelNameInput.readOnly = false;
         floorNameInput.readOnly = false
     }
@@ -1784,7 +2155,9 @@
         document.querySelectorAll(".panel-list summary, .equipment-sublist a").forEach(el => el.classList.remove("active"));
         formTitle.textContent = "Add New Equipment";
         mainHeader.textContent = "Workspace";
-        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button>`;
+        submitButtonContainer.innerHTML = `<button type="submit" class="btn btn-primary">Add Equipment to Schedule</button><button type="button" id="save-preset-btn" class="btn btn-success" style="margin-left: 10px;">Save as Preset</button>`;
+        // Re-bind event listener for the dynamically created Save Preset button
+        document.getElementById('save-preset-btn').addEventListener('click', showSavePresetModal);
         panelNameInput.readOnly = false;
         floorNameInput.readOnly = false
     }
@@ -1893,6 +2266,69 @@
     let panelDeleteConfirmInput = document.getElementById('delete-panel-confirm');
     let panelDeleteConfirmWordInput = document.getElementById('delete-panel-confirm-word');
     let deletePanelId = null; let deletePanelName = null;
+    let renamePanelId = null; let renamePanelName = null;
+
+    function showRenamePanel(panel) {
+        renamePanelId = panel.id; 
+        renamePanelName = panel.panelName;
+        document.getElementById('rename-panel-info').textContent = `Renaming panel: "${panel.panelName}"`;
+        document.getElementById('rename-panel-input').value = panel.panelName;
+        document.getElementById('rename-panel-modal').style.display = 'flex';
+        // Focus and select the text for easy editing
+        setTimeout(() => {
+            const input = document.getElementById('rename-panel-input');
+            input.focus();
+            input.select();
+        }, 100);
+    }
+
+    function hideRenamePanelModal() {
+        document.getElementById('rename-panel-modal').style.display = 'none';
+    }
+
+    async function confirmPanelRename() {
+        const newName = document.getElementById('rename-panel-input').value.trim();
+        
+        if (!newName) {
+            alert('Please enter a panel name.');
+            return;
+        }
+        
+        if (newName === renamePanelName) {
+            hideRenamePanelModal();
+            return;
+        }
+
+        // Check if panel name already exists in this project
+        const existingPanel = appData.panels.find(p => p.panelName === newName && p.id !== renamePanelId);
+        if (existingPanel) {
+            alert('A panel with this name already exists in this project.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/panel/${projectId}/${renamePanelId}/rename`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+
+            if (response.ok) {
+                hideRenamePanelModal();
+                // Refresh data and UI
+                const updated = await apiCall(`/api/data/${projectId}`);
+                appData.panels = updated.panels;
+                appData.scheduledEquipment = updated.scheduledEquipment;
+                renderSidebar();
+                resetForm();
+            } else {
+                const data = await response.json().catch(() => ({ error: 'Rename failed' }));
+                alert(data.error || 'Rename failed');
+            }
+        } catch (error) {
+            alert('Network error. Please try again.');
+        }
+    }
 
     function showDeletePanel(panel){
       deletePanelId = panel.id; deletePanelName = panel.panelName;
@@ -1904,6 +2340,20 @@
 
     document.getElementById('cancel-delete-panel').onclick = ()=>{ panelDeleteModal.style.display='none'; };
 
+    // Add event listener for rename panel modal
+    document.getElementById('rename-panel-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            confirmPanelRename();
+        }
+    });
+
+    // Close rename panel modal when clicking outside
+    document.getElementById('rename-panel-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            hideRenamePanelModal();
+        }
+    });
+
     document.getElementById('confirm-delete-panel').onclick = async ()=>{
       if(panelDeleteConfirmInput.value !== deletePanelName){ alert('Panel name mismatch'); return; }
       if(panelDeleteConfirmWordInput.value !== 'DELETE'){ alert('Please type DELETE to confirm.'); return; }
@@ -1912,23 +2362,50 @@
       else { const data = await resp.json().catch(()=>({error:'Delete failed'})); alert(data.error || 'Delete failed'); }
     };
 
-    // Inject delete buttons into sidebar after render
+    // Inject rename and delete buttons into sidebar after render
     const originalRenderSidebar = renderSidebar;
     renderSidebar = async function(){
       await originalRenderSidebar();
-      // Add delete controls to panel summaries
+      // Add rename and delete controls to panel summaries
       document.querySelectorAll('#panel-list details').forEach(details => {
         const summary = details.querySelector('summary');
-        if(summary && !summary.querySelector('.panel-del')){
+        if(summary && !summary.querySelector('.panel-controls')){
           const panelName = summary.dataset.panelName; const panel = appData.panels.find(p=>p.panelName===panelName);
           if(panel){
-            const btn = document.createElement('button');
-            btn.textContent='✖';
-            btn.title='Delete Panel';
-            btn.className='panel-del';
-            btn.style.marginLeft='8px'; btn.style.background='transparent'; btn.style.border='none'; btn.style.cursor='pointer'; btn.style.color='#b00';
-            btn.onclick = (e)=>{ e.stopPropagation(); showDeletePanel(panel); };
-            summary.appendChild(btn);
+            // Create controls container
+            const controls = document.createElement('div');
+            controls.className = 'panel-controls';
+            controls.style.display = 'inline-flex';
+            controls.style.gap = '4px';
+            controls.style.marginLeft = '8px';
+            
+            // Rename button
+            const renameBtn = document.createElement('button');
+            renameBtn.textContent='✏️';
+            renameBtn.title='Rename Panel';
+            renameBtn.className='panel-rename';
+            renameBtn.style.background='transparent'; 
+            renameBtn.style.border='none'; 
+            renameBtn.style.cursor='pointer'; 
+            renameBtn.style.color='#d69e2e';
+            renameBtn.style.fontSize='12px';
+            renameBtn.onclick = (e)=>{ e.stopPropagation(); showRenamePanel(panel); };
+            
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent='✖';
+            deleteBtn.title='Delete Panel';
+            deleteBtn.className='panel-del';
+            deleteBtn.style.background='transparent'; 
+            deleteBtn.style.border='none'; 
+            deleteBtn.style.cursor='pointer'; 
+            deleteBtn.style.color='#b00';
+            deleteBtn.style.fontSize='12px';
+            deleteBtn.onclick = (e)=>{ e.stopPropagation(); showDeletePanel(panel); };
+            
+            controls.appendChild(renameBtn);
+            controls.appendChild(deleteBtn);
+            summary.appendChild(controls);
           }
         }
       });

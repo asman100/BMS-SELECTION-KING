@@ -391,6 +391,341 @@
                 padding: 0.5rem;
             }
         }
+
+        /* Tabs Styles */
+        .admin-tabs {
+            display: flex;
+            background: var(--white);
+            border-radius: 12px 12px 0 0;
+            box-shadow: var(--shadow);
+            margin-bottom: 0;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .admin-tab {
+            flex: 1;
+            padding: 1rem 2rem;
+            background: #f8fafc;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .admin-tab:last-child {
+            border-right: none;
+        }
+
+        .admin-tab.active {
+            background: var(--white);
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .admin-tab:hover:not(.active) {
+            background: #e2e8f0;
+            color: var(--text-primary);
+        }
+
+        .tab-content {
+            display: none;
+            background: var(--white);
+            border-radius: 0 0 12px 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            border-top: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Document Customization Styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group small {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        .color-input-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .color-preview {
+            width: 50px;
+            height: 38px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .image-upload-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .upload-card {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-card:hover {
+            border-color: var(--primary-color);
+            background: #f8fafc;
+        }
+
+        .upload-card input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: var(--primary-color);
+            color: var(--white);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: var(--secondary-color);
+        }
+
+        .current-image {
+            max-width: 100px;
+            max-height: 60px;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .save-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .btn-save {
+            background: var(--success-color);
+            color: var(--white);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save:hover {
+            background: #38a169;
+            transform: translateY(-1px);
+        }
+
+        /* Template Preview Styles */
+        .template-preview-section {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--white);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .preview-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .preview-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .preview-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .document-preview {
+            padding: 2rem;
+            background: #fafbfc;
+            border: 1px solid #e1e5e9;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .document-section {
+            background: var(--white);
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header-section {
+            padding: 1.5rem;
+            border-left: 4px solid var(--primary-color);
+            text-align: center;
+        }
+
+        .header-content {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .header-image-placeholder, .footer-image-placeholder {
+            padding: 1rem;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 1rem;
+        }
+
+        .content-section {
+            padding: 1.5rem;
+        }
+
+        .preview-document-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.85rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .preview-document-table th {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8rem;
+            background-color: #343a40;
+            color: #ffffff;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .preview-document-table td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .preview-document-table .table-row.primary {
+            background-color: #f8f9fa;
+        }
+
+        .preview-document-table .table-row.secondary {
+            background-color: #ffffff;
+        }
+
+        .preview-document-table .table-totals {
+            background-color: #e9ecef;
+            font-weight: 600;
+        }
+
+        .footer-section {
+            padding: 1.5rem;
+            border-left: 4px solid var(--success-color);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .footer-content {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .company-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            text-align: right;
+        }
+
+        /* Responsive design for document preview */
+        @media (max-width: 768px) {
+            .document-preview {
+                padding: 1rem;
+            }
+            
+            .preview-document-table {
+                font-size: 0.75rem;
+            }
+            
+            .preview-document-table th,
+            .preview-document-table td {
+                padding: 0.5rem 0.25rem;
+            }
+            
+            .footer-section {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .company-info {
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -440,8 +775,16 @@
             </div>
         </div>
 
-        <!-- Users Management -->
-        <div class="users-section">
+        <!-- Admin Tabs -->
+        <div class="admin-tabs">
+            <button class="admin-tab active" onclick="switchTab('users')">👤 User Management</button>
+            <button class="admin-tab" onclick="switchTab('projects')">📋 Projects Management</button>
+            <button class="admin-tab" onclick="switchTab('documents')">📝 Document Customization</button>
+        </div>
+
+        <!-- User Management Tab -->
+        <div id="users-tab" class="tab-content active">
+            <div class="users-section"
             <div class="section-header">
                 <div class="section-title">
                     👤 User Management
@@ -517,6 +860,350 @@
                     <p>No users have registered yet.</p>
                 </div>
             {% endif %}
+        </div>
+        </div>
+
+        <!-- Projects Management Tab -->
+        <div id="projects-tab" class="tab-content">
+            <div class="section-header">
+                <div class="section-title">
+                    📋 Projects Management
+                </div>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                    View and manage all projects from all users in the system
+                </p>
+            </div>
+
+            {% if projects_data %}
+                <div style="overflow-x: auto;">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Owner</th>
+                                <th>Panels</th>
+                                <th>Equipment</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project_data in projects_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ project_data.project.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="role-badge role-user">{{ project_data.owner.username }}</span>
+                                    {% if project_data.owner.is_admin %}
+                                        <span class="role-badge role-admin" style="margin-left: 0.5rem;">Admin</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center;">
+                                    <span style="background: #e6fffa; color: #0c4a6e; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">
+                                        {{ project_data.panels_count }} panels
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span style="background: #f0f9ff; color: #0c4a6e; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">
+                                        {{ project_data.equipment_count }} equipment
+                                    </span>
+                                </td>
+                                <td style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    <!-- Project creation date would go here if available -->
+                                    --
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a href="/?project_id={{ project_data.project.id }}" 
+                                           class="btn btn-secondary" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            👁️ View
+                                        </a>
+                                        <a href="/controller_selection/{{ project_data.project.id }}" 
+                                           class="btn btn-warning" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            ⚙️ Controllers
+                                        </a>
+                                        <a href="/reports_output/{{ project_data.project.id }}" 
+                                           class="btn btn-success" 
+                                           style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                            📄 Reports
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h3>No Projects Found</h3>
+                    <p>No projects have been created yet.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Document Customization Tab -->
+        <div id="documents-tab" class="tab-content">
+            <!-- Template Preview Section -->
+            <div class="template-preview-section">
+                <div class="preview-header">
+                    <div class="preview-icon">📄</div>
+                    <div class="preview-title">Document Template Preview</div>
+                    <div class="preview-subtitle">Live preview of your customized document template</div>
+                </div>
+                
+                <div class="document-preview">
+                    <!-- Document Header Preview -->
+                    <div class="document-section header-section" id="preview-document-header">
+                        <div class="header-content" id="preview-header-content">
+                            Building Management System<br>
+                            Project Documentation<br>
+                            Generated by BMS Selection Tool
+                        </div>
+                        <div class="header-image-placeholder" id="preview-header-image" style="display: none;">
+                            [Header Image Preview]
+                        </div>
+                    </div>
+                    
+                    <!-- Document Content Preview -->
+                    <div class="document-section content-section">
+                        <h3 style="color: var(--text-primary); margin-bottom: 1rem;">Equipment Point List</h3>
+                        
+                        <!-- Equipment Table Preview -->
+                        <table class="preview-document-table" id="preview-document-table">
+                            <thead>
+                                <tr class="table-header" id="preview-table-header">
+                                    <th>Equipment</th>
+                                    <th>Point Name</th>
+                                    <th>Part Number</th>
+                                    <th>DI</th>
+                                    <th>DO</th>
+                                    <th>AI</th>
+                                    <th>AO</th>
+                                    <th>Software</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-row primary" id="preview-table-row-1">
+                                    <td>AHU-01</td>
+                                    <td>Supply Air Temperature</td>
+                                    <td>T-S-10k</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                                <tr class="table-row secondary" id="preview-table-row-2">
+                                    <td>AHU-01</td>
+                                    <td>Return Air Temperature</td>
+                                    <td>T-R-10k</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                                <tr class="table-row primary" id="preview-table-row-3">
+                                    <td>AHU-01</td>
+                                    <td>Supply Fan Status</td>
+                                    <td>SF-Status</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>Hardwired</td>
+                                </tr>
+                                <tr class="table-row secondary" id="preview-table-row-4">
+                                    <td>AHU-02</td>
+                                    <td>Damper Control</td>
+                                    <td>D-Control</td>
+                                    <td>0</td>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>BACnet</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-totals" id="preview-table-totals">
+                                    <td colspan="3"><strong>TOTALS</strong></td>
+                                    <td><strong>1</strong></td>
+                                    <td><strong>1</strong></td>
+                                    <td><strong>2</strong></td>
+                                    <td><strong>0</strong></td>
+                                    <td><strong>4 Points</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <!-- Document Footer Preview -->
+                    <div class="document-section footer-section" id="preview-document-footer">
+                        <div class="footer-content" id="preview-footer-content">
+                            Confidential - Property of [Company Name]<br>
+                            Generated on: January 15, 2025<br>
+                            Page 1 of 3
+                        </div>
+                        <div class="footer-image-placeholder" id="preview-footer-image" style="display: none;">
+                            [Footer Image Preview]
+                        </div>
+                        <div class="company-info" id="preview-company-info">
+                            [Company Name]<br>
+                            [Address]<br>
+                            [Phone] | [Email]<br>
+                            [Website]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="template-name">Template Name</label>
+                <input type="text" id="template-name" placeholder="e.g., Corporate Template" />
+                <small>Give this customization template a descriptive name</small>
+            </div>
+
+            <!-- Image Upload Section -->
+            <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📷 Image Assets</h3>
+            <div class="image-upload-section">
+                <div class="upload-card">
+                    <h4>Header Image</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Company logo or header graphic
+                    </p>
+                    <input type="file" id="header-image" accept=".png,.jpg,.jpeg,.pdf,.eps" />
+                    <button class="upload-btn" onclick="document.getElementById('header-image').click()">
+                        📁 Choose File
+                    </button>
+                    <div id="header-image-preview"></div>
+                    <small>Supported: PNG, JPG, PDF, EPS</small>
+                </div>
+
+                <div class="upload-card">
+                    <h4>Footer Image</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Footer logo or certification marks
+                    </p>
+                    <input type="file" id="footer-image" accept=".png,.jpg,.jpeg,.pdf,.eps" />
+                    <button class="upload-btn" onclick="document.getElementById('footer-image').click()">
+                        📁 Choose File
+                    </button>
+                    <div id="footer-image-preview"></div>
+                    <small>Supported: PNG, JPG, PDF, EPS</small>
+                </div>
+
+                <div class="upload-card">
+                    <h4>Company Logo</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Main company logo for branding
+                    </p>
+                    <input type="file" id="company-logo" accept=".png,.jpg,.jpeg,.pdf,.eps" />
+                    <button class="upload-btn" onclick="document.getElementById('company-logo').click()">
+                        📁 Choose File
+                    </button>
+                    <div id="company-logo-preview"></div>
+                    <small>Supported: PNG, JPG, PDF, EPS</small>
+                </div>
+            </div>
+
+            <!-- Text Content Section -->
+            <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📝 Text Content</h3>
+            <div class="form-group">
+                <label for="document-header">Document Header</label>
+                <textarea id="document-header" placeholder="Enter your document header text..."></textarea>
+                <small>Use LaTeX commands for formatting. Leave empty to use uploaded header image.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="document-footer">Document Footer</label>
+                <textarea id="document-footer" placeholder="Enter your document footer text..."></textarea>
+                <small>Use \\today for current date, \\thepage for page numbers. Leave empty to use uploaded footer image.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="company-info">Company Information</label>
+                <textarea id="company-info" placeholder="Enter company details..."></textarea>
+                <small>Contact information, address, certifications, etc.</small>
+            </div>
+
+            <!-- Color Customization Section -->
+            <h3 style="margin-bottom: 1rem; color: var(--text-primary);">🎨 Table Color Scheme</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                <div class="form-group">
+                    <label for="table-primary-color">Primary Row Color</label>
+                    <div class="color-input-group">
+                        <input type="color" id="table-primary-color" value="#f8f9fa" />
+                        <input type="text" id="table-primary-color-text" value="#f8f9fa" pattern="^#[0-9A-Fa-f]{6}$" />
+                        <div class="color-preview" id="primary-color-preview" style="background-color: #f8f9fa;"></div>
+                    </div>
+                    <small>Background color for alternating table rows</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="table-secondary-color">Secondary Row Color</label>
+                    <div class="color-input-group">
+                        <input type="color" id="table-secondary-color" value="#ffffff" />
+                        <input type="text" id="table-secondary-color-text" value="#ffffff" pattern="^#[0-9A-Fa-f]{6}$" />
+                        <div class="color-preview" id="secondary-color-preview" style="background-color: #ffffff;"></div>
+                    </div>
+                    <small>Background color for default table rows</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="table-header-color">Header Background Color</label>
+                    <div class="color-input-group">
+                        <input type="color" id="table-header-color" value="#343a40" />
+                        <input type="text" id="table-header-color-text" value="#343a40" pattern="^#[0-9A-Fa-f]{6}$" />
+                        <div class="color-preview" id="header-color-preview" style="background-color: #343a40;"></div>
+                    </div>
+                    <small>Background color for table headers</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="table-header-text-color">Header Text Color</label>
+                    <div class="color-input-group">
+                        <input type="color" id="table-header-text-color" value="#ffffff" />
+                        <input type="text" id="table-header-text-color-text" value="#ffffff" pattern="^#[0-9A-Fa-f]{6}$" />
+                        <div class="color-preview" id="header-text-color-preview" style="background-color: #ffffff;"></div>
+                    </div>
+                    <small>Text color for table headers</small>
+                </div>
+            </div>
+
+            <!-- Color Preview Table -->
+            <h4 style="margin: 2rem 0 1rem; color: var(--text-primary);">Preview</h4>
+            <table style="width: 100%; border-collapse: collapse; border-radius: 6px; overflow: hidden; margin-bottom: 2rem;">
+                <thead>
+                    <tr id="preview-header" style="background-color: #343a40; color: #ffffff;">
+                        <th style="padding: 0.75rem; text-align: left;">Equipment Name</th>
+                        <th style="padding: 0.75rem; text-align: left;">Point Count</th>
+                        <th style="padding: 0.75rem; text-align: left;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="preview-row-1" style="background-color: #ffffff;">
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">AHU-01</td>
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">24</td>
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">Active</td>
+                    </tr>
+                    <tr id="preview-row-2" style="background-color: #f8f9fa;">
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">AHU-02</td>
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">18</td>
+                        <td style="padding: 0.75rem; border-bottom: 1px solid #dee2e6;">Active</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Save Section -->
+            <div class="save-section">
+                <button class="btn-save" onclick="saveDocumentCustomization()">
+                    💾 Save Document Settings
+                </button>
+            </div>
         </div>
     </div>
 
@@ -599,6 +1286,278 @@
                 setTimeout(() => msg.remove(), 500);
             });
         }, 5000);
+
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.admin-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content and mark tab as active
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+
+            // Load document customization data when switching to documents tab
+            if (tabName === 'documents') {
+                loadDocumentCustomization();
+            }
+        }
+
+        // Document customization functionality
+        let currentCustomization = {};
+
+        async function loadDocumentCustomization() {
+            try {
+                const response = await fetch('/api/admin/document-customization');
+                if (response.ok) {
+                    currentCustomization = await response.json();
+                    populateDocumentForm();
+                }
+            } catch (error) {
+                console.error('Failed to load document customization:', error);
+            }
+        }
+
+        function populateDocumentForm() {
+            document.getElementById('template-name').value = currentCustomization.name || '';
+            document.getElementById('document-header').value = currentCustomization.document_header || '';
+            document.getElementById('document-footer').value = currentCustomization.document_footer || '';
+            document.getElementById('company-info').value = currentCustomization.company_info || '';
+            
+            // Set color values
+            setColorInput('table-primary-color', currentCustomization.table_primary_color);
+            setColorInput('table-secondary-color', currentCustomization.table_secondary_color);
+            setColorInput('table-header-color', currentCustomization.table_header_color);
+            setColorInput('table-header-text-color', currentCustomization.table_header_text_color);
+            
+            // Show current images if they exist
+            showCurrentImage('header', currentCustomization.header_image_path);
+            showCurrentImage('footer', currentCustomization.footer_image_path);
+            showCurrentImage('company-logo', currentCustomization.company_logo_path);
+            
+            updateTemplatePreview();
+        }
+
+        function setColorInput(baseId, colorValue) {
+            if (colorValue) {
+                document.getElementById(baseId).value = colorValue;
+                document.getElementById(baseId + '-text').value = colorValue;
+            }
+        }
+
+        function showCurrentImage(type, imagePath) {
+            if (imagePath) {
+                const previewDiv = document.getElementById(type.replace('-', '') + '-image-preview');
+                previewDiv.innerHTML = `
+                    <img src="${imagePath}" class="current-image" alt="Current ${type} image" />
+                    <p style="font-size: 0.8rem; color: var(--success-color); margin-top: 0.5rem;">Current image</p>
+                `;
+            }
+        }
+
+        // Color input synchronization
+        function setupColorInputs() {
+            const colorInputs = ['table-primary-color', 'table-secondary-color', 'table-header-color', 'table-header-text-color'];
+            
+            colorInputs.forEach(inputId => {
+                const colorInput = document.getElementById(inputId);
+                const textInput = document.getElementById(inputId + '-text');
+                
+                colorInput.addEventListener('input', (e) => {
+                    textInput.value = e.target.value;
+                    updateTemplatePreview();
+                });
+                
+                textInput.addEventListener('input', (e) => {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                        colorInput.value = e.target.value;
+                        updateTemplatePreview();
+                    }
+                });
+            });
+        }
+
+        function updateTemplatePreview() {
+            const primaryColor = document.getElementById('table-primary-color').value;
+            const secondaryColor = document.getElementById('table-secondary-color').value;
+            const headerColor = document.getElementById('table-header-color').value;
+            const headerTextColor = document.getElementById('table-header-text-color').value;
+            
+            // Update color preview squares
+            document.getElementById('primary-color-preview').style.backgroundColor = primaryColor;
+            document.getElementById('secondary-color-preview').style.backgroundColor = secondaryColor;
+            document.getElementById('header-color-preview').style.backgroundColor = headerColor;
+            document.getElementById('header-text-color-preview').style.backgroundColor = headerTextColor;
+            
+            // Update small preview table (keep existing functionality)
+            document.getElementById('preview-header').style.backgroundColor = headerColor;
+            document.getElementById('preview-header').style.color = headerTextColor;
+            document.getElementById('preview-row-1').style.backgroundColor = secondaryColor;
+            document.getElementById('preview-row-2').style.backgroundColor = primaryColor;
+            
+            // Update template preview document table
+            const documentTableHeader = document.getElementById('preview-table-header');
+            const documentTableRows = document.querySelectorAll('.preview-document-table .table-row');
+            
+            if (documentTableHeader) {
+                documentTableHeader.style.backgroundColor = headerColor;
+                documentTableHeader.style.color = headerTextColor;
+            }
+            
+            documentTableRows.forEach((row, index) => {
+                if (row.classList.contains('primary')) {
+                    row.style.backgroundColor = primaryColor;
+                } else if (row.classList.contains('secondary')) {
+                    row.style.backgroundColor = secondaryColor;
+                }
+            });
+            
+            // Update text content in template preview
+            updateTextPreview();
+        }
+
+        function updateTextPreview() {
+            const headerText = document.getElementById('document-header').value;
+            const footerText = document.getElementById('document-footer').value;
+            const companyInfo = document.getElementById('company-info').value;
+            
+            // Update header preview
+            const headerPreview = document.getElementById('preview-header-content');
+            if (headerPreview && headerText.trim()) {
+                headerPreview.innerHTML = headerText.replace(/\n/g, '<br>');
+            }
+            
+            // Update footer preview (convert LaTeX commands to readable text)
+            const footerPreview = document.getElementById('preview-footer-content');
+            if (footerPreview && footerText.trim()) {
+                let processedFooter = footerText
+                    .replace(/\\today/g, 'January 15, 2025')
+                    .replace(/\\thepage/g, '1')
+                    .replace(/\\pageref\{LastPage\}/g, '3')
+                    .replace(/\n/g, '<br>');
+                footerPreview.innerHTML = processedFooter;
+            }
+            
+            // Update company info preview
+            const companyPreview = document.getElementById('preview-company-info');
+            if (companyPreview && companyInfo.trim()) {
+                companyPreview.innerHTML = companyInfo.replace(/\n/g, '<br>');
+            }
+        }
+
+        // Add event listeners for text fields to update preview in real-time
+        function setupTextPreviewUpdates() {
+            const textFields = ['document-header', 'document-footer', 'company-info'];
+            
+            textFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', updateTextPreview);
+                }
+            });
+        }
+
+        // File upload handling
+        function setupFileUploads() {
+            const uploadInputs = ['header-image', 'footer-image', 'company-logo'];
+            
+            uploadInputs.forEach(inputId => {
+                document.getElementById(inputId).addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const type = inputId.replace('-image', '').replace('-', '');
+                        uploadImage(file, type);
+                    }
+                });
+            });
+        }
+
+        async function uploadImage(file, type) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', type);
+            
+            try {
+                const response = await fetch('/api/admin/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showCurrentImage(type, result.file_path);
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Upload failed. Please try again.', 'error');
+            }
+        }
+
+        async function saveDocumentCustomization() {
+            const data = {
+                name: document.getElementById('template-name').value,
+                document_header: document.getElementById('document-header').value,
+                document_footer: document.getElementById('document-footer').value,
+                company_info: document.getElementById('company-info').value,
+                table_primary_color: document.getElementById('table-primary-color').value,
+                table_secondary_color: document.getElementById('table-secondary-color').value,
+                table_header_color: document.getElementById('table-header-color').value,
+                table_header_text_color: document.getElementById('table-header-text-color').value
+            };
+            
+            try {
+                const response = await fetch('/api/admin/document-customization', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.error || 'Save failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Save failed. Please try again.', 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flash-message flash-${type}`;
+            messageDiv.textContent = message;
+            
+            const flashContainer = document.querySelector('.flash-messages') || document.createElement('div');
+            if (!document.querySelector('.flash-messages')) {
+                flashContainer.className = 'flash-messages';
+                document.querySelector('.container').insertBefore(flashContainer, document.querySelector('.stats-grid'));
+            }
+            
+            flashContainer.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                messageDiv.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => messageDiv.remove(), 500);
+            }, 3000);
+        }
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setupColorInputs();
+            setupFileUploads();
+            setupTextPreviewUpdates();
+            updateTemplatePreview();
+        });
     </script>
 </body>
 </html>

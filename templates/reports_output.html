@@ -246,6 +246,19 @@
             padding: 2rem;
         }
 
+        #dual-preview-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            #dual-preview-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+
         .preview-iframe {
             width: 100%;
             height: 600px;
@@ -313,43 +326,23 @@
             </div>
             <div class="selection-content">
                 <div class="report-grid">
-                    <div class="report-card" onclick="toggleReport('equipment-list')">
+                    <div class="report-card" onclick="toggleReport('technical-report')">
                         <div class="report-checkbox">
-                            <input type="checkbox" id="equipment-list" name="reports" value="equipment-list">
-                            <label for="equipment-list" class="report-title">Equipment List</label>
+                            <input type="checkbox" id="technical-report" name="reports" value="technical-report">
+                            <label for="technical-report" class="report-title">Technical Report</label>
                         </div>
                         <div class="report-description">
-                            Complete list of all scheduled equipment with their instances, quantities, and assigned panels.
+                            Complete technical documentation including Equipment List and Point List without costs. Enhanced with professional section dividers for clear technical documentation.
                         </div>
                     </div>
 
-                    <div class="report-card" onclick="toggleReport('point-list')">
+                    <div class="report-card" onclick="toggleReport('financial-report')">
                         <div class="report-checkbox">
-                            <input type="checkbox" id="point-list" name="reports" value="point-list">
-                            <label for="point-list" class="report-title">Point List</label>
+                            <input type="checkbox" id="financial-report" name="reports" value="financial-report">
+                            <label for="financial-report" class="report-title">Financial Report</label>
                         </div>
                         <div class="report-description">
-                            Detailed breakdown of I/O points by equipment, showing signal types and part numbers.
-                        </div>
-                    </div>
-
-                    <div class="report-card" onclick="toggleReport('field-devices-boq')">
-                        <div class="report-checkbox">
-                            <input type="checkbox" id="field-devices-boq" name="reports" value="field-devices-boq">
-                            <label for="field-devices-boq" class="report-title">Field Devices BOQ</label>
-                        </div>
-                        <div class="report-description">
-                            Bill of quantities for field devices including sensors, actuators, and other components.
-                        </div>
-                    </div>
-
-                    <div class="report-card" onclick="toggleReport('controller-boq')">
-                        <div class="report-checkbox">
-                            <input type="checkbox" id="controller-boq" name="reports" value="controller-boq">
-                            <label for="controller-boq" class="report-title">Controller BOQ</label>
-                        </div>
-                        <div class="report-description">
-                            Bill of quantities for controllers, servers, modules, and accessories with pricing.
+                            Financial summary containing combined Parts BOQ and Controller BOQ with totals. Streamlined cost breakdown for procurement and budgeting.
                         </div>
                     </div>
                 </div>
@@ -359,38 +352,17 @@
         <div class="template-section">
             <div class="card-header">
                 <div class="card-icon">📝</div>
-                <div class="card-title">Document Template Settings</div>
+                <div class="card-title">Document Settings</div>
             </div>
             <div class="template-content">
-                <div class="form-group">
-                    <label for="document-header">Document Header</label>
-                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
-                        Enter text or specify an image path (e.g., "/path/to/logo.png"). Supported formats: PNG, JPG, PDF, EPS
-                    </small>
-                    <textarea class="form-control" id="document-header" placeholder="Enter your document header (company name, project title, etc.) or image path">Building Management System
-Project Documentation
-Generated by BMS Selection Tool</textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="document-footer">Document Footer</label>
-                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
-                        Enter text with LaTeX commands or specify an image path. Use \today for current date, \thepage for page numbers
-                    </small>
-                    <textarea class="form-control" id="document-footer" placeholder="Enter your document footer (company info, page numbers, etc.) or image path">Confidential - Property of [Company Name]
-Generated on: \today
-Page \thepage\ of \pageref{LastPage}</textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="company-info">Company Information</label>
-                    <small style="color: #6b7280; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">
-                        Enter company details or specify a logo image path for branding
-                    </small>
-                    <textarea class="form-control" id="company-info" placeholder="Enter company information or logo image path">[Company Name]
-[Address]
-[Phone] | [Email]
-[Website]</textarea>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    Document customization is now managed by administrators. 
+                    <a href="/admin" style="color: var(--primary-color); text-decoration: none;">Go to Admin Panel</a> 
+                    to configure headers, footers, colors, and upload images.
+                </p>
+                <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 1rem;">
+                    <strong style="color: #0369a1;">Current Template:</strong> <span id="current-template-name">Loading...</span><br>
+                    <small style="color: #0c4a6e;">Headers, footers, and colors are applied automatically from admin settings.</small>
                 </div>
             </div>
         </div>
@@ -398,19 +370,48 @@ Page \thepage\ of \pageref{LastPage}</textarea>
         <div class="actions">
             <a href="/controller_selection/{{ project_id }}" class="btn btn-secondary">Back to Controller Selection</a>
             <button onclick="generatePreview()" class="btn btn-primary" id="preview-btn" disabled>Generate Preview</button>
-            <button onclick="downloadLatex()" class="btn btn-success" id="latex-btn" disabled>Download LaTeX</button>
-            <button onclick="downloadPDF()" class="btn btn-success" id="pdf-btn" disabled>Download PDF</button>
+            
+            <!-- Technical Report Downloads -->
+            <button onclick="downloadFile('technical', 'latex')" class="btn btn-info" id="tech-latex-btn" disabled style="margin-left: 10px;">📄 Technical LaTeX</button>
+            <button onclick="downloadFile('technical', 'pdf')" class="btn btn-success" id="tech-pdf-btn" disabled>📄 Technical PDF</button>
+            
+            <!-- Financial Report Downloads -->
+            <button onclick="downloadFile('financial', 'latex')" class="btn btn-info" id="fin-latex-btn" disabled style="margin-left: 10px;">💰 Financial LaTeX</button>
+            <button onclick="downloadFile('financial', 'pdf')" class="btn btn-success" id="fin-pdf-btn" disabled>💰 Financial PDF</button>
         </div>
 
         <div id="preview-section" class="preview-section">
             <div class="card-header">
                 <div class="card-icon">👁️</div>
-                <div class="card-title">Document Preview</div>
+                <div class="card-title">Document Previews</div>
             </div>
             <div class="preview-content">
                 <div id="loading-preview" class="loading" style="display: none;">
-                    <p>Generating preview...</p>
+                    <p>Generating previews...</p>
                 </div>
+                
+                <!-- Dual Preview Grid -->
+                <div id="dual-preview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <!-- Technical Report Preview -->
+                    <div id="technical-preview-container" style="display: none;">
+                        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                            <h3 style="color: #0369a1; margin: 0 0 0.5rem 0; font-size: 1.1rem;">📋 Technical Report Preview</h3>
+                            <p style="color: #0c4a6e; margin: 0; font-size: 0.9rem;">Engineering documentation without costs</p>
+                        </div>
+                        <iframe id="technical-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
+                    </div>
+                    
+                    <!-- Financial Report Preview -->
+                    <div id="financial-preview-container" style="display: none;">
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                            <h3 style="color: #15803d; margin: 0 0 0.5rem 0; font-size: 1.1rem;">💰 Financial Report Preview</h3>
+                            <p style="color: #166534; margin: 0; font-size: 0.9rem;">Cost breakdown and procurement summary</p>
+                        </div>
+                        <iframe id="financial-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
+                    </div>
+                </div>
+                
+                <!-- Single Preview (for backward compatibility) -->
                 <iframe id="preview-iframe" class="preview-iframe" style="display: none;"></iframe>
             </div>
         </div>
@@ -420,6 +421,23 @@ Page \thepage\ of \pageref{LastPage}</textarea>
         const projectId = {{ project_id }};
         let selectedReports = new Set();
         let generatedContent = null;
+        let documentCustomization = null;
+
+        // Load document customization settings
+        async function loadDocumentCustomization() {
+            try {
+                const response = await fetch('/api/admin/document-customization');
+                if (response.ok) {
+                    documentCustomization = await response.json();
+                    document.getElementById('current-template-name').textContent = documentCustomization.name || 'Default Template';
+                } else {
+                    document.getElementById('current-template-name').textContent = 'Default Template';
+                }
+            } catch (error) {
+                console.error('Failed to load document customization:', error);
+                document.getElementById('current-template-name').textContent = 'Default Template';
+            }
+        }
 
         function toggleReport(reportId) {
             const checkbox = document.getElementById(reportId);
@@ -441,12 +459,22 @@ Page \thepage\ of \pageref{LastPage}</textarea>
         function updateButtonStates() {
             const hasSelection = selectedReports.size > 0;
             const previewBtn = document.getElementById('preview-btn');
-            const latexBtn = document.getElementById('latex-btn');
-            const pdfBtn = document.getElementById('pdf-btn');
+            const techLatexBtn = document.getElementById('tech-latex-btn');
+            const techPdfBtn = document.getElementById('tech-pdf-btn');
+            const finLatexBtn = document.getElementById('fin-latex-btn');
+            const finPdfBtn = document.getElementById('fin-pdf-btn');
             
             previewBtn.disabled = !hasSelection;
-            latexBtn.disabled = !generatedContent;
-            pdfBtn.disabled = !generatedContent;
+            
+            // Enable technical buttons if technical content exists
+            const hasTechnical = generatedContent && generatedContent.technical;
+            techLatexBtn.disabled = !hasTechnical;
+            techPdfBtn.disabled = !hasTechnical;
+            
+            // Enable financial buttons if financial content exists
+            const hasFinancial = generatedContent && generatedContent.financial;
+            finLatexBtn.disabled = !hasFinancial;
+            finPdfBtn.disabled = !hasFinancial;
         }
 
         async function generatePreview() {
@@ -457,83 +485,86 @@ Page \thepage\ of \pageref{LastPage}</textarea>
 
             const previewSection = document.getElementById('preview-section');
             const loadingPreview = document.getElementById('loading-preview');
-            const previewIframe = document.getElementById('preview-iframe');
+            const dualPreviewGrid = document.getElementById('dual-preview-grid');
+            const singlePreviewIframe = document.getElementById('preview-iframe');
+            
+            const technicalContainer = document.getElementById('technical-preview-container');
+            const financialContainer = document.getElementById('financial-preview-container');
+            const technicalIframe = document.getElementById('technical-preview-iframe');
+            const financialIframe = document.getElementById('financial-preview-iframe');
 
             previewSection.style.display = 'block';
             loadingPreview.style.display = 'block';
-            previewIframe.style.display = 'none';
+            dualPreviewGrid.style.display = 'none';
+            singlePreviewIframe.style.display = 'none';
 
+            const selectedArray = Array.from(selectedReports);
+            const hasTechnical = selectedArray.includes('technical-report');
+            const hasFinancial = selectedArray.includes('financial-report');
+            
             try {
-                const response = await fetch(`/api/projects/${projectId}/reports/generate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        reports: Array.from(selectedReports),
-                        header: document.getElementById('document-header').value,
-                        footer: document.getElementById('document-footer').value,
-                        company_info: document.getElementById('company-info').value
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    if (data.details && Array.isArray(data.details)) {
-                        // Show validation errors with suggestions
-                        let errorMessage = data.error + ':\n\n';
-                        data.details.forEach(detail => {
-                            errorMessage += '• ' + detail + '\n';
-                        });
-                        errorMessage += '\nPlease complete the required steps in Controller Selection before generating these reports.';
-                        showNotification(errorMessage, 'error');
-                        
-                        // Hide preview section on validation error
-                        previewSection.style.display = 'none';
-                        return;
-                    } else {
-                        throw new Error(data.error || 'Failed to generate reports');
+                // Generate previews based on selection
+                const promises = [];
+                
+                if (hasTechnical) {
+                    promises.push(generateSinglePreview('technical-report').then(data => ({ type: 'technical', data })));
+                }
+                
+                if (hasFinancial) {
+                    promises.push(generateSinglePreview('financial-report').then(data => ({ type: 'financial', data })));
+                }
+                
+                const results = await Promise.all(promises);
+                
+                // Setup display based on what was generated
+                if (hasTechnical && hasFinancial) {
+                    // Show dual preview
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'block';
+                    financialContainer.style.display = 'block';
+                    
+                    results.forEach(result => {
+                        if (result.type === 'technical') {
+                            setupPreviewIframe(technicalIframe, result.data);
+                        } else if (result.type === 'financial') {
+                            setupPreviewIframe(financialIframe, result.data);
+                        }
+                    });
+                } else if (hasTechnical) {
+                    // Show only technical
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'block';
+                    financialContainer.style.display = 'none';
+                    
+                    const techResult = results.find(r => r.type === 'technical');
+                    if (techResult) {
+                        setupPreviewIframe(technicalIframe, techResult.data);
+                    }
+                } else if (hasFinancial) {
+                    // Show only financial
+                    dualPreviewGrid.style.display = 'grid';
+                    technicalContainer.style.display = 'none';
+                    financialContainer.style.display = 'block';
+                    
+                    const finResult = results.find(r => r.type === 'financial');
+                    if (finResult) {
+                        setupPreviewIframe(financialIframe, finResult.data);
                     }
                 }
 
-                generatedContent = data;
+                // Store the content for download - organized by report type
+                generatedContent = {};
+                results.forEach(result => {
+                    if (result.reportType === 'technical-report') {
+                        generatedContent.technical = result.data;
+                    } else if (result.reportType === 'financial-report') {
+                        generatedContent.financial = result.data;
+                    }
+                });
                 
-                // Show PDF preview if available, otherwise show LaTeX preview
-                if (data.pdf_preview_url) {
-                    previewIframe.src = data.pdf_preview_url;
-                    showNotification('PDF preview generated successfully!', 'success');
-                } else {
-                    // Fallback to LaTeX preview if PDF generation failed
-                    previewIframe.srcdoc = `
-                        <html>
-                            <head>
-                                <style>
-                                    body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
-                                    .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
-                                    .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
-                                    .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="note">
-                                    LaTeX source generated successfully. PDF preview requires LaTeX installation.
-                                    You can still download the LaTeX source and compile it locally.
-                                </div>
-                                <div class="section">
-                                    <div class="title">LaTeX Source Preview</div>
-                                    ${data.latex_content.substring(0, 3000)}...
-                                </div>
-                            </body>
-                        </html>
-                    `;
-                    showNotification('LaTeX source generated successfully', 'success');
-                }
-
                 loadingPreview.style.display = 'none';
-                previewIframe.style.display = 'block';
-                
                 updateButtonStates();
+                showNotification('Preview generated successfully!', 'success');
 
             } catch (error) {
                 console.error('Error generating preview:', error);
@@ -543,66 +574,127 @@ Page \thepage\ of \pageref{LastPage}</textarea>
             }
         }
 
-        async function downloadLatex() {
-            if (!generatedContent) {
-                showNotification('Please generate preview first.', 'warning');
-                return;
+        async function generateSinglePreview(reportType) {
+            const response = await fetch(`/api/projects/${projectId}/reports/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reports: [reportType],
+                    header: documentCustomization ? documentCustomization.document_header : 'Building Management System\nProject Documentation\nGenerated by BMS Selection Tool',
+                    footer: documentCustomization ? documentCustomization.document_footer : 'Confidential - Property of [Company Name]\nGenerated on: \\today\nPage \\thepage\\ of \\pageref{LastPage}',
+                    company_info: documentCustomization ? documentCustomization.company_info : '[Company Name]\n[Address]\n[Phone] | [Email]\n[Website]',
+                    header_image: documentCustomization ? documentCustomization.header_image_path : null,
+                    footer_image: documentCustomization ? documentCustomization.footer_image_path : null,
+                    company_logo: documentCustomization ? documentCustomization.company_logo_path : null,
+                    table_colors: documentCustomization ? {
+                        primary: documentCustomization.table_primary_color,
+                        secondary: documentCustomization.table_secondary_color,
+                        header_bg: documentCustomization.table_header_color,
+                        header_text: documentCustomization.table_header_text_color
+                    } : null
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (data.details && Array.isArray(data.details)) {
+                    let errorMessage = data.error + ':\n\n';
+                    data.details.forEach(detail => {
+                        errorMessage += '• ' + detail + '\n';
+                    });
+                    errorMessage += '\nPlease complete the required steps in Controller Selection before generating these reports.';
+                    throw new Error(errorMessage);
+                } else {
+                    throw new Error(data.error || 'Failed to generate reports');
+                }
             }
 
-            try {
-                const blob = new Blob([generatedContent.latex_content], { type: 'application/x-latex' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `bms_reports_project_${projectId}.tex`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+            return data;
+        }
 
-                showNotification('LaTeX file downloaded successfully!', 'success');
-            } catch (error) {
-                console.error('Error downloading LaTeX:', error);
-                showNotification('Error downloading LaTeX file: ' + error.message, 'error');
+        function setupPreviewIframe(iframe, data) {
+            if (data.pdf_preview_url) {
+                iframe.src = data.pdf_preview_url;
+            } else {
+                // Fallback to LaTeX preview
+                iframe.srcdoc = `
+                    <html>
+                        <head>
+                            <style>
+                                body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
+                                .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
+                                .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
+                                .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="note">
+                                LaTeX source generated successfully. PDF preview requires LaTeX installation.
+                            </div>
+                            <div class="section">
+                                <div class="title">LaTeX Source Preview</div>
+                                ${data.latex_content.substring(0, 3000)}...
+                            </div>
+                        </body>
+                    </html>
+                `;
             }
         }
 
-        async function downloadPDF() {
-            if (!generatedContent) {
-                showNotification('Please generate preview first.', 'warning');
+        async function downloadFile(reportType, fileType) {
+            if (!generatedContent || !generatedContent[reportType]) {
+                showNotification(`Please generate ${reportType} preview first.`, 'warning');
                 return;
             }
 
+            const data = generatedContent[reportType];
+            
             try {
-                const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        latex_content: generatedContent.latex_content
-                    })
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Failed to generate PDF');
+                if (fileType === 'latex') {
+                    // Download LaTeX source
+                    const blob = new Blob([data.latex_content], { type: 'application/x-latex' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `bms_${reportType}_report_project_${projectId}.tex`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} LaTeX file downloaded!`, 'success');
+                } else {
+                    // Download compiled PDF
+                    const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            latex_content: data.latex_content,
+                            report_type: reportType
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to generate PDF');
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `bms_${reportType}_report_project_${projectId}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} PDF downloaded!`, 'success');
                 }
-
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `bms_reports_project_${projectId}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                showNotification('PDF downloaded successfully!', 'success');
             } catch (error) {
-                console.error('Error downloading PDF:', error);
-                showNotification('Error downloading PDF: ' + error.message, 'error');
+                console.error(`Error downloading ${reportType} ${fileType}:`, error);
+                showNotification(`Error downloading ${reportType} ${fileType}: ` + error.message, 'error');
             }
         }
 
@@ -735,6 +827,11 @@ Page \thepage\ of \pageref{LastPage}</textarea>
             checkbox.addEventListener('click', function(e) {
                 e.stopPropagation();
             });
+        });
+
+        // Load document customization when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDocumentCustomization();
         });
     </script>
 </body>

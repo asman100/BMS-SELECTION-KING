@@ -407,6 +407,18 @@
                     <div id="panels-container">
                         <!-- Panels will be populated here -->
                     </div>
+                    <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        <label for="spare-percentage" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary);">
+                            Spare Point Percentage:
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="number" id="spare-percentage" min="0" max="100" value="20" 
+                                   style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; width: 80px;" />
+                            <span style="color: var(--text-secondary); font-size: 0.9rem;">
+                                % (Example: 20% adds 2 spare points for every 10 required points)
+                            </span>
+                        </div>
+                    </div>
                     <div style="margin-top: 1rem;">
                         <button onclick="optimizeControllers()" class="btn btn-success">Optimize Controller Selection</button>
                     </div>
@@ -528,7 +540,11 @@
 
         async function loadControllerSelectionData() {
             try {
-                const response = await fetch(`/api/projects/${projectId}/controller_selection`);
+                // Get spare percentage from input (default to 0 if not set)
+                const sparePercentage = document.getElementById('spare-percentage') ? 
+                    (parseInt(document.getElementById('spare-percentage').value) || 0) : 0;
+                
+                const response = await fetch(`/api/projects/${projectId}/controller_selection?spare_percentage=${sparePercentage}`);
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -781,6 +797,9 @@
 
                 showNotification('Optimizing controller selection...', 'success');
 
+                // Get spare percentage from input
+                const sparePercentage = parseInt(document.getElementById('spare-percentage').value) || 0;
+
                 const response = await fetch(`/api/projects/${projectId}/controller_selection/optimize`, {
                     method: 'POST',
                     headers: {
@@ -788,7 +807,8 @@
                     },
                     body: JSON.stringify({
                         server_panels: Array.from(selectedServerPanels),
-                        selected_solutions: selectedSolutions
+                        selected_solutions: selectedSolutions,
+                        spare_percentage: sparePercentage
                     })
                 });
 
@@ -1294,7 +1314,21 @@
         }
 
         // Load data when page loads
-        document.addEventListener('DOMContentLoaded', loadControllerSelectionData);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadControllerSelectionData();
+            
+            // Add event listener for spare percentage changes
+            const sparePercentageInput = document.getElementById('spare-percentage');
+            if (sparePercentageInput) {
+                sparePercentageInput.addEventListener('input', function() {
+                    // Debounce to avoid too many requests
+                    clearTimeout(this.timeout);
+                    this.timeout = setTimeout(() => {
+                        loadControllerSelectionData();
+                    }, 500);
+                });
+            }
+        });
     </script>
 </body>
 </html>
