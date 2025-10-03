@@ -555,9 +555,9 @@
                 // Store the content for download - organized by report type
                 generatedContent = {};
                 results.forEach(result => {
-                    if (result.reportType === 'technical-report') {
+                    if (result.type === 'technical') {
                         generatedContent.technical = result.data;
-                    } else if (result.reportType === 'financial-report') {
+                    } else if (result.type === 'financial') {
                         generatedContent.financial = result.data;
                     }
                 });
