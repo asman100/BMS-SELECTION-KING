@@ -83,17 +83,18 @@ class PointTemplate(db.Model):
     sub_points = db.relationship('SubPointTemplate', backref='parent_point', lazy='dynamic', cascade="all, delete-orphan")
 
     def to_dict(self):
-        point_name = self.name
+        display_name = self.name
         if self.part:
-            point_name = f"{self.part.part_number} - {self.part.description}"
+            display_name = f"{self.part.part_number} - {self.part.description}"
             if self.part.country_of_origin:
-                point_name += f" (Made in {self.part.country_of_origin})"
+                display_name += f" (Made in {self.part.country_of_origin})"
             if self.part.cable_recommendation:
-                 point_name += f" [Cable: {self.part.cable_recommendation}]"
+                 display_name += f" [Cable: {self.part.cable_recommendation}]"
 
         return {
             "id": self.id, 
-            "name": point_name, 
+            "name": self.name,  # Original name entered by user
+            "display_name": display_name,  # Name with part info for display
             "quantity": self.quantity, 
             "sub_points": [sp.to_dict() for sp in self.sub_points],
             "part_id": self.part_id
