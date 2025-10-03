@@ -617,7 +617,28 @@
 
         function setupPreviewIframe(iframe, data) {
             if (data.pdf_preview_url) {
-                iframe.src = data.pdf_preview_url;
+                // Convert base64 data URL to Blob for better browser compatibility
+                try {
+                    const base64Data = data.pdf_preview_url.split(',')[1];
+                    const binaryData = atob(base64Data);
+                    const bytes = new Uint8Array(binaryData.length);
+                    for (let i = 0; i < binaryData.length; i++) {
+                        bytes[i] = binaryData.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], { type: 'application/pdf' });
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    // Set iframe src to blob URL instead of large base64 string
+                    iframe.src = blobUrl;
+                    
+                    // Store blob URL for cleanup later if needed
+                    if (!window.pdfBlobUrls) window.pdfBlobUrls = [];
+                    window.pdfBlobUrls.push(blobUrl);
+                } catch (error) {
+                    console.error('Error creating PDF blob:', error);
+                    // Fallback to direct base64 URL
+                    iframe.src = data.pdf_preview_url;
+                }
             } else {
                 // Fallback to LaTeX preview
                 iframe.srcdoc = `
