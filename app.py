@@ -7,16 +7,19 @@ import os
 import csv
 import json
 import tempfile
-import subprocess
-from datetime import datetime
-from pylatex import Document, Section, Subsection, Table, Tabular, Command
-from pylatex.utils import italic, bold, NoEscape
-from pylatex.base_classes import Environment
-from pylatex.package import Package
+import sys
+# Removing pylatex imports to avoid system dependency
+# from pylatex import Document, Section, Subsection, Table, Tabular, Command
+# from pylatex.utils import italic, bold, NoEscape
+# from pylatex.base_classes import Environment
+# from pylatex.package import Package
 
 # --- APP SETUP ---
 app = Flask(__name__)
-basedir = os.path.abspath(os.path.dirname(__file__))
+if getattr(sys, 'frozen', False):
+    basedir = sys._MEIPASS
+else:
+    basedir = os.path.abspath(os.path.dirname(__file__))
 
 # Configuration with environment variables
 # Use DATABASE_URL if provided (for PostgreSQL on Railway), otherwise use SQLite
@@ -2357,6 +2360,10 @@ def generate_pdf_with_reportlab(project_id, selected_reports, header, footer, co
                     story.extend(generate_field_devices_boq_reportlab(project_id, styles))
                 elif report_type == 'controller-boq':
                     story.extend(generate_controller_boq_reportlab(project_id, styles))
+                elif report_type == 'technical-report':
+                    story.extend(generate_technical_report_reportlab(project_id, styles))
+                elif report_type == 'financial-report':
+                    story.extend(generate_financial_report_reportlab(project_id, styles))
             except Exception as report_error:
                 print(f"Error generating {report_type}: {report_error}")
                 # Add error message to PDF instead of failing completely
@@ -2840,44 +2847,100 @@ def generate_point_list_reportlab(project_id, styles):
 @app.route('/api/projects/<int:project_id>/reports/pdf', methods=['POST'])
 @login_required
 def generate_pdf(project_id):
-    """Generate PDF from LaTeX content."""
+    """Generate PDF using ReportLab (No LaTeX required)."""
     project = Project.query.get_or_404(project_id)
     if project.owner != current_user:
         return jsonify({"error": "Unauthorized"}), 403
 
     data = request.get_json()
-    if not data or 'latex_content' not in data:
-        return jsonify({"error": "No LaTeX content provided"}), 400
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    report_type = data.get('report_type')
+    if not report_type:
+        # Fallback if only latex_content is provided (legacy behavior, but we ignore latex now)
+        # We need to know WHICH report to generate. 
+        # If the frontend only sends latex_content and no report_type, we might be stuck.
+        # But we saw frontend sends report_type!
+        return jsonify({"error": "Report type not specified"}), 400
 
     try:
-        # Create temporary files
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tex_file = os.path.join(temp_dir, f"bms_reports_{project_id}.tex")
-            pdf_file = os.path.join(temp_dir, f"bms_reports_{project_id}.pdf")
-            
-            # Write LaTeX content to file
-            with open(tex_file, 'w', encoding='utf-8') as f:
-                f.write(data['latex_content'])
-            
-            # Try to compile with pdflatex (if available)
-            try:
-                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
-                             check=True, capture_output=True, text=True)
-                
-                # Run again for references
-                subprocess.run(['pdflatex', '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file], 
-                             check=True, capture_output=True, text=True)
-                
-                return send_file(pdf_file, as_attachment=True, 
-                               download_name=f"bms_reports_project_{project_id}.pdf")
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                # If pdflatex is not available, return error with suggestion
-                return jsonify({
-                    "error": "PDF generation requires LaTeX installation. Please install TeX Live or MiKTeX and try again. You can download the LaTeX source instead."
-                }), 500
-            
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from io import BytesIO
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        styles.add(ParagraphStyle(name='CenterTitle', parent=styles['Heading1'], alignment=1))
+        
+        story = []
+        
+        # Title Page
+        story.append(Spacer(1, 60))
+        story.append(Paragraph("Building Management System", styles['CenterTitle']))
+        story.append(Paragraph(f"Project: {project.name}", styles['CenterTitle']))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal']))
+        story.append(PageBreak())
+
+        # Generate content based on report type
+        if report_type == 'technical':
+            story.extend(generate_technical_report_reportlab(project_id, styles))
+        elif report_type == 'financial':
+            story.extend(generate_financial_report_reportlab(project_id, styles))
+        elif report_type == 'equipment-list':
+             story.extend(generate_equipment_list_reportlab(project_id, styles))
+        elif report_type == 'point-list':
+             story.extend(generate_point_list_reportlab(project_id, styles))
+        elif report_type == 'field-devices-boq':
+             story.extend(generate_field_devices_boq_reportlab(project_id, styles))
+        elif report_type == 'controller-boq':
+             story.extend(generate_controller_boq_reportlab(project_id, styles))
+        else:
+             return jsonify({"error": f"Unknown report type: {report_type}"}), 400
+
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(buffer, as_attachment=True, download_name=f"bms_{report_type}_report_project_{project_id}.pdf", mimetype='application/pdf')
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+def generate_technical_report_reportlab(project_id, styles):
+    """Generate technical report (Equipment List + Point List)."""
+    from reportlab.platypus import PageBreak
+    story = []
+    
+    # Equipment List
+    story.extend(generate_equipment_list_reportlab(project_id, styles))
+    story.append(PageBreak())
+    
+    # Point List
+    story.extend(generate_point_list_reportlab(project_id, styles))
+    
+    return story
+
+def generate_financial_report_reportlab(project_id, styles):
+    """Generate financial report (Field Devices BOQ + Controller BOQ)."""
+    from reportlab.platypus import PageBreak
+    story = []
+    
+    # Field Devices BOQ
+    story.extend(generate_field_devices_boq_reportlab(project_id, styles))
+    story.append(PageBreak())
+    
+    # Controller BOQ
+    story.extend(generate_controller_boq_reportlab(project_id, styles))
+    
+    return story
 
 def generate_latex_content(project_id, selected_reports, header, footer, company_info):
     """Generate LaTeX content for the selected reports."""

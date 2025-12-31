@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -298,6 +299,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -332,7 +334,8 @@
                             <label for="technical-report" class="report-title">Technical Report</label>
                         </div>
                         <div class="report-description">
-                            Complete technical documentation including Equipment List and Point List without costs. Enhanced with professional section dividers for clear technical documentation.
+                            Complete technical documentation including Equipment List and Point List without costs.
+                            Enhanced with professional section dividers for clear technical documentation.
                         </div>
                     </div>
 
@@ -342,7 +345,8 @@
                             <label for="financial-report" class="report-title">Financial Report</label>
                         </div>
                         <div class="report-description">
-                            Financial summary containing combined Parts BOQ and Controller BOQ with totals. Streamlined cost breakdown for procurement and budgeting.
+                            Financial summary containing combined Parts BOQ and Controller BOQ with totals. Streamlined
+                            cost breakdown for procurement and budgeting.
                         </div>
                     </div>
                 </div>
@@ -356,65 +360,34 @@
             </div>
             <div class="template-content">
                 <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                    Document customization is now managed by administrators. 
-                    <a href="/admin" style="color: var(--primary-color); text-decoration: none;">Go to Admin Panel</a> 
+                    Document customization is now managed by administrators.
+                    <a href="/admin" style="color: var(--primary-color); text-decoration: none;">Go to Admin Panel</a>
                     to configure headers, footers, colors, and upload images.
                 </p>
                 <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 1rem;">
-                    <strong style="color: #0369a1;">Current Template:</strong> <span id="current-template-name">Loading...</span><br>
-                    <small style="color: #0c4a6e;">Headers, footers, and colors are applied automatically from admin settings.</small>
+                    <strong style="color: #0369a1;">Current Template:</strong> <span
+                        id="current-template-name">Loading...</span><br>
+                    <small style="color: #0c4a6e;">Headers, footers, and colors are applied automatically from admin
+                        settings.</small>
                 </div>
             </div>
         </div>
 
         <div class="actions">
             <a href="/controller_selection/{{ project_id }}" class="btn btn-secondary">Back to Controller Selection</a>
-            <button onclick="generatePreview()" class="btn btn-primary" id="preview-btn" disabled>Generate Preview</button>
-            
+            <button onclick="generateReports()" class="btn btn-primary" id="generate-btn" disabled>Generate
+                Reports</button>
+
             <!-- Technical Report Downloads -->
-            <button onclick="downloadFile('technical', 'latex')" class="btn btn-info" id="tech-latex-btn" disabled style="margin-left: 10px;">📄 Technical LaTeX</button>
-            <button onclick="downloadFile('technical', 'pdf')" class="btn btn-success" id="tech-pdf-btn" disabled>📄 Technical PDF</button>
-            
+            <button onclick="downloadFile('technical', 'latex')" class="btn btn-info" id="tech-latex-btn" disabled
+                style="margin-left: 10px;">📄 Download Technical LaTeX</button>
+
             <!-- Financial Report Downloads -->
-            <button onclick="downloadFile('financial', 'latex')" class="btn btn-info" id="fin-latex-btn" disabled style="margin-left: 10px;">💰 Financial LaTeX</button>
-            <button onclick="downloadFile('financial', 'pdf')" class="btn btn-success" id="fin-pdf-btn" disabled>💰 Financial PDF</button>
+            <button onclick="downloadFile('financial', 'latex')" class="btn btn-info" id="fin-latex-btn" disabled
+                style="margin-left: 10px;">💰 Download Financial LaTeX</button>
         </div>
 
-        <div id="preview-section" class="preview-section">
-            <div class="card-header">
-                <div class="card-icon">👁️</div>
-                <div class="card-title">Document Previews</div>
-            </div>
-            <div class="preview-content">
-                <div id="loading-preview" class="loading" style="display: none;">
-                    <p>Generating previews...</p>
-                </div>
-                
-                <!-- Dual Preview Grid -->
-                <div id="dual-preview-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                    <!-- Technical Report Preview -->
-                    <div id="technical-preview-container" style="display: none;">
-                        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-                            <h3 style="color: #0369a1; margin: 0 0 0.5rem 0; font-size: 1.1rem;">📋 Technical Report Preview</h3>
-                            <p style="color: #0c4a6e; margin: 0; font-size: 0.9rem;">Engineering documentation without costs</p>
-                        </div>
-                        <iframe id="technical-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
-                    </div>
-                    
-                    <!-- Financial Report Preview -->
-                    <div id="financial-preview-container" style="display: none;">
-                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-                            <h3 style="color: #15803d; margin: 0 0 0.5rem 0; font-size: 1.1rem;">💰 Financial Report Preview</h3>
-                            <p style="color: #166534; margin: 0; font-size: 0.9rem;">Cost breakdown and procurement summary</p>
-                        </div>
-                        <iframe id="financial-preview-iframe" class="preview-iframe" style="height: 500px;"></iframe>
-                    </div>
-                </div>
-                
-                <!-- Single Preview (for backward compatibility) -->
-                <iframe id="preview-iframe" class="preview-iframe" style="display: none;"></iframe>
-            </div>
-        </div>
+
     </div>
 
     <script>
@@ -442,9 +415,9 @@
         function toggleReport(reportId) {
             const checkbox = document.getElementById(reportId);
             const card = checkbox.closest('.report-card');
-            
+
             checkbox.checked = !checkbox.checked;
-            
+
             if (checkbox.checked) {
                 selectedReports.add(reportId);
                 card.classList.add('selected');
@@ -452,105 +425,54 @@
                 selectedReports.delete(reportId);
                 card.classList.remove('selected');
             }
-            
+
             updateButtonStates();
         }
 
         function updateButtonStates() {
             const hasSelection = selectedReports.size > 0;
-            const previewBtn = document.getElementById('preview-btn');
+            const generateBtn = document.getElementById('generate-btn');
             const techLatexBtn = document.getElementById('tech-latex-btn');
-            const techPdfBtn = document.getElementById('tech-pdf-btn');
             const finLatexBtn = document.getElementById('fin-latex-btn');
-            const finPdfBtn = document.getElementById('fin-pdf-btn');
-            
-            previewBtn.disabled = !hasSelection;
-            
+
+            if (generateBtn) generateBtn.disabled = !hasSelection;
+
             // Enable technical buttons if technical content exists
             const hasTechnical = generatedContent && generatedContent.technical;
-            techLatexBtn.disabled = !hasTechnical;
-            techPdfBtn.disabled = !hasTechnical;
-            
+            if (techLatexBtn) techLatexBtn.disabled = !hasTechnical;
+
             // Enable financial buttons if financial content exists
             const hasFinancial = generatedContent && generatedContent.financial;
-            finLatexBtn.disabled = !hasFinancial;
-            finPdfBtn.disabled = !hasFinancial;
+            if (finLatexBtn) finLatexBtn.disabled = !hasFinancial;
         }
 
-        async function generatePreview() {
+        async function generateReports() {
             if (selectedReports.size === 0) {
                 showNotification('Please select at least one report to generate.', 'warning');
                 return;
             }
 
-            const previewSection = document.getElementById('preview-section');
-            const loadingPreview = document.getElementById('loading-preview');
-            const dualPreviewGrid = document.getElementById('dual-preview-grid');
-            const singlePreviewIframe = document.getElementById('preview-iframe');
-            
-            const technicalContainer = document.getElementById('technical-preview-container');
-            const financialContainer = document.getElementById('financial-preview-container');
-            const technicalIframe = document.getElementById('technical-preview-iframe');
-            const financialIframe = document.getElementById('financial-preview-iframe');
-
-            previewSection.style.display = 'block';
-            loadingPreview.style.display = 'block';
-            dualPreviewGrid.style.display = 'none';
-            singlePreviewIframe.style.display = 'none';
+            const generateBtn = document.getElementById('generate-btn');
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
 
             const selectedArray = Array.from(selectedReports);
             const hasTechnical = selectedArray.includes('technical-report');
             const hasFinancial = selectedArray.includes('financial-report');
-            
+
             try {
-                // Generate previews based on selection
+                // Generate reports based on selection
                 const promises = [];
-                
+
                 if (hasTechnical) {
                     promises.push(generateSinglePreview('technical-report').then(data => ({ type: 'technical', data })));
                 }
-                
+
                 if (hasFinancial) {
                     promises.push(generateSinglePreview('financial-report').then(data => ({ type: 'financial', data })));
                 }
-                
+
                 const results = await Promise.all(promises);
-                
-                // Setup display based on what was generated
-                if (hasTechnical && hasFinancial) {
-                    // Show dual preview
-                    dualPreviewGrid.style.display = 'grid';
-                    technicalContainer.style.display = 'block';
-                    financialContainer.style.display = 'block';
-                    
-                    results.forEach(result => {
-                        if (result.type === 'technical') {
-                            setupPreviewIframe(technicalIframe, result.data);
-                        } else if (result.type === 'financial') {
-                            setupPreviewIframe(financialIframe, result.data);
-                        }
-                    });
-                } else if (hasTechnical) {
-                    // Show only technical
-                    dualPreviewGrid.style.display = 'grid';
-                    technicalContainer.style.display = 'block';
-                    financialContainer.style.display = 'none';
-                    
-                    const techResult = results.find(r => r.type === 'technical');
-                    if (techResult) {
-                        setupPreviewIframe(technicalIframe, techResult.data);
-                    }
-                } else if (hasFinancial) {
-                    // Show only financial
-                    dualPreviewGrid.style.display = 'grid';
-                    technicalContainer.style.display = 'none';
-                    financialContainer.style.display = 'block';
-                    
-                    const finResult = results.find(r => r.type === 'financial');
-                    if (finResult) {
-                        setupPreviewIframe(financialIframe, finResult.data);
-                    }
-                }
 
                 // Store the content for download - organized by report type
                 generatedContent = {};
@@ -561,16 +483,16 @@
                         generatedContent.financial = result.data;
                     }
                 });
-                
-                loadingPreview.style.display = 'none';
+
+                generateBtn.textContent = 'Generate Reports';
                 updateButtonStates();
-                showNotification('Preview generated successfully!', 'success');
+                showNotification('Reports generated successfully! You can now download them.', 'success');
 
             } catch (error) {
-                console.error('Error generating preview:', error);
-                showNotification('Error generating preview: ' + error.message, 'error');
-                loadingPreview.style.display = 'none';
-                previewSection.style.display = 'none';
+                console.error('Error generating reports:', error);
+                showNotification('Error generating reports: ' + error.message, 'error');
+                generateBtn.textContent = 'Generate Reports';
+                updateButtonStates();
             }
         }
 
@@ -615,104 +537,46 @@
             return data;
         }
 
-        function setupPreviewIframe(iframe, data) {
-            if (data.pdf_preview_url) {
-                // Convert base64 data URL to Blob for better browser compatibility
-                try {
-                    const base64Data = data.pdf_preview_url.split(',')[1];
-                    const binaryData = atob(base64Data);
-                    const bytes = new Uint8Array(binaryData.length);
-                    for (let i = 0; i < binaryData.length; i++) {
-                        bytes[i] = binaryData.charCodeAt(i);
-                    }
-                    const blob = new Blob([bytes], { type: 'application/pdf' });
-                    const blobUrl = URL.createObjectURL(blob);
-                    
-                    // Set iframe src to blob URL instead of large base64 string
-                    iframe.src = blobUrl;
-                    
-                    // Store blob URL for cleanup later if needed
-                    if (!window.pdfBlobUrls) window.pdfBlobUrls = [];
-                    window.pdfBlobUrls.push(blobUrl);
-                } catch (error) {
-                    console.error('Error creating PDF blob:', error);
-                    // Fallback to direct base64 URL
-                    iframe.src = data.pdf_preview_url;
-                }
-            } else {
-                // Fallback to LaTeX preview
-                iframe.srcdoc = `
-                    <html>
-                        <head>
-                            <style>
-                                body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
-                                .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; }
-                                .title { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
-                                .note { color: #f59e0b; background: #fef3c7; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="note">
-                                LaTeX source generated successfully. PDF preview requires LaTeX installation.
-                            </div>
-                            <div class="section">
-                                <div class="title">LaTeX Source Preview</div>
-                                ${data.latex_content.substring(0, 3000)}...
-                            </div>
-                        </body>
-                    </html>
-                `;
-            }
-        }
+
 
         async function downloadFile(reportType, fileType) {
             if (!generatedContent || !generatedContent[reportType]) {
-                showNotification(`Please generate ${reportType} preview first.`, 'warning');
+                showNotification(`Please generate reports first.`, 'warning');
                 return;
             }
 
             const data = generatedContent[reportType];
-            
+
             try {
-                if (fileType === 'latex') {
-                    // Download LaTeX source
-                    const blob = new Blob([data.latex_content], { type: 'application/x-latex' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `bms_${reportType}_report_project_${projectId}.tex`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} LaTeX file downloaded!`, 'success');
-                } else {
-                    // Download compiled PDF
-                    const response = await fetch(`/api/projects/${projectId}/reports/pdf`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            latex_content: data.latex_content,
-                            report_type: reportType
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'Failed to generate PDF');
-                    }
-                    
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `bms_${reportType}_report_project_${projectId}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} PDF downloaded!`, 'success');
+                // Check if running in desktop mode
+                if (window.pywebview) {
+                    const filename = `bms_${reportType}_report_project_${projectId}.tex`;
+                    // Convert content to base64 for python
+                    const base64Content = btoa(unescape(encodeURIComponent(data.latex_content)));
+
+                    window.pywebview.api.save_file(filename, base64Content)
+                        .then(response => {
+                            if (response.status === 'success') {
+                                showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} LaTeX file saved to ${response.path}!`, 'success');
+                            } else if (response.status === 'error') {
+                                showNotification(`Error saving file: ${response.message}`, 'error');
+                            }
+                        });
+                    return;
                 }
+
+                // Download LaTeX source (Web/Browser mode)
+                const blob = new Blob([data.latex_content], { type: 'application/x-latex' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bms_${reportType}_report_project_${projectId}.tex`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showNotification(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} LaTeX file downloaded!`, 'success');
+
             } catch (error) {
                 console.error(`Error downloading ${reportType} ${fileType}:`, error);
                 showNotification(`Error downloading ${reportType} ${fileType}: ` + error.message, 'error');
@@ -723,16 +587,16 @@
             const notifications = document.getElementById('notifications');
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
-            
+
             // Handle multi-line messages
             if (message.includes('\n')) {
                 notification.innerHTML = message.replace(/\n/g, '<br>');
             } else {
                 notification.textContent = message;
             }
-            
+
             notifications.appendChild(notification);
-            
+
             // Auto-remove notification after longer time for error messages
             const timeout = type === 'error' ? 10000 : 5000;
             setTimeout(() => {
@@ -743,7 +607,7 @@
         }
 
         // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Load project name and status
             loadProjectStatus();
             updateButtonStates();
@@ -754,33 +618,33 @@
                 // Check controller selection status
                 const controllerResponse = await fetch(`/api/projects/${projectId}/controller_selection`);
                 const controllerData = await controllerResponse.json();
-                
+
                 // Check for existing optimization
                 const boqResponse = await fetch(`/api/projects/${projectId}/controller_selection/boq`);
                 const hasOptimization = boqResponse.ok;
-                
+
                 // Check equipment data
                 const dataResponse = await fetch(`/api/data/${projectId}`);
                 const projectData = await dataResponse.json();
-                
+
                 displayProjectStatus(projectData, hasOptimization);
-                
+
                 // Update project name
-                document.getElementById('project-name').textContent = 
+                document.getElementById('project-name').textContent =
                     `Generate LaTeX and PDF reports for Project ${projectId}`;
-                    
+
             } catch (error) {
                 console.error('Error loading project status:', error);
-                document.getElementById('project-status').innerHTML = 
+                document.getElementById('project-status').innerHTML =
                     '<p style="color: #ef4444;">Error loading project status</p>';
             }
         }
 
         function displayProjectStatus(projectData, hasOptimization) {
             const statusDiv = document.getElementById('project-status');
-            
+
             let statusHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
-            
+
             // Equipment status
             const equipmentCount = projectData.scheduledEquipment ? projectData.scheduledEquipment.length : 0;
             const equipmentStatus = equipmentCount > 0 ? '✅' : '❌';
@@ -790,7 +654,7 @@
                     <div style="font-size: 0.85rem; color: #6b7280;">${equipmentCount} equipment items</div>
                 </div>
             `;
-            
+
             // Controller optimization status
             const optimizationStatus = hasOptimization ? '✅' : '❌';
             statusHtml += `
@@ -799,7 +663,7 @@
                     <div style="font-size: 0.85rem; color: #6b7280;">${hasOptimization ? 'Completed' : 'Required for BOQ reports'}</div>
                 </div>
             `;
-            
+
             // Point selection status
             let totalPoints = 0;
             if (projectData.scheduledEquipment) {
@@ -816,9 +680,9 @@
                     <div style="font-size: 0.85rem; color: #6b7280;">${totalPoints} points selected</div>
                 </div>
             `;
-            
+
             statusHtml += '</div>';
-            
+
             if (!hasOptimization) {
                 statusHtml += `
                     <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px;">
@@ -832,12 +696,12 @@
                     </div>
                 `;
             }
-            
+
             statusDiv.innerHTML = statusHtml;
         }
 
         // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Load project status and data
             loadProjectStatus();
             updateButtonStates();
@@ -845,7 +709,7 @@
 
         // Handle checkbox clicks to prevent double-toggling
         document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-            checkbox.addEventListener('click', function(e) {
+            checkbox.addEventListener('click', function (e) {
                 e.stopPropagation();
             });
         });
@@ -856,4 +720,5 @@
         });
     </script>
 </body>
+
 </html>
